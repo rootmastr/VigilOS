@@ -103,10 +103,8 @@ services:
     restart: always
     ports:
       - "8181:80"
-      - "8443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf
-      - ./ssl:/etc/nginx/ssl
     networks:
       - vigil_network
     depends_on:
@@ -117,13 +115,10 @@ services:
     image: eclipse-mosquitto:2
     container_name: vigil-mosquitto
     restart: always
+    command: mosquitto -c /dev/null -p 1883
     ports:
       - "1883:1883"
       - "9001:9001"
-    volumes:
-      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
-      - mosquitto_data:/mosquitto/data
-      - mosquitto_log:/mosquitto/log
     networks:
       - vigil_network
 
