@@ -1,0 +1,157 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "VigilOS Overview",
+    "tags": ["vigilos", "monitoring"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Request Rate",
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total[5m]))",
+            "legendFormat": "Requests/sec"
+          }
+        ],
+        "yaxes": [
+          { "format": "reqps" },
+          { "format": "short" }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Response Time (P95)",
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+            "legendFormat": "P95 Latency"
+          }
+        ],
+        "yaxes": [
+          { "format": "s" },
+          { "format": "short" }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Error Rate",
+        "type": "singlestat",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 8 },
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{status=~'5..'}[5m])) / sum(rate(http_requests_total[5m])) * 100",
+            "legendFormat": "Error %"
+          }
+        ],
+        "valueName": "current",
+        "postfix": "%"
+      },
+      {
+        "id": 4,
+        "title": "Active WebSocket Connections",
+        "type": "singlestat",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 8 },
+        "targets": [
+          {
+            "expr": "websocket_connections_total",
+            "legendFormat": "Connections"
+          }
+        ],
+        "valueName": "current"
+      },
+      {
+        "id": 5,
+        "title": "Memory Usage",
+        "type": "singlestat",
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 8 },
+        "targets": [
+          {
+            "expr": "process_resident_memory_bytes / 1024 / 1024",
+            "legendFormat": "Memory"
+          }
+        ],
+        "valueName": "current",
+        "postfix": " MB"
+      },
+      {
+        "id": 6,
+        "title": "Cache Hit Rate",
+        "type": "singlestat",
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 8 },
+        "targets": [
+          {
+            "expr": "sum(rate(redis_keyspace_hits_total[5m])) / (sum(rate(redis_keyspace_hits_total[5m])) + sum(rate(redis_keyspace_misses_total[5m]))) * 100",
+            "legendFormat": "Hit Rate"
+          }
+        ],
+        "valueName": "current",
+        "postfix": "%"
+      },
+      {
+        "id": 7,
+        "title": "Active Vehicles",
+        "type": "singlestat",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 12 },
+        "targets": [
+          {
+            "expr": "vehicles_active_total",
+            "legendFormat": "Vehicles"
+          }
+        ],
+        "valueName": "current"
+      },
+      {
+        "id": 8,
+        "title": "Open Incidents",
+        "type": "singlestat",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 12 },
+        "targets": [
+          {
+            "expr": "incidents_open_total",
+            "legendFormat": "Incidents"
+          }
+        ],
+        "valueName": "current"
+      },
+      {
+        "id": 9,
+        "title": "System Uptime",
+        "type": "singlestat",
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 12 },
+        "targets": [
+          {
+            "expr": "time() - process_start_time_seconds",
+            "legendFormat": "Uptime"
+          }
+        ],
+        "valueName": "current",
+        "postfix": "s"
+      },
+      {
+        "id": 10,
+        "title": "CPU Usage",
+        "type": "gauge",
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 12 },
+        "targets": [
+          {
+            "expr": "rate(process_cpu_seconds_total[5m]) * 100",
+            "legendFormat": "CPU"
+          }
+        ],
+        "valueName": "current",
+        "postfix": "%",
+        "max": 100
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "10s"
+  }
+}

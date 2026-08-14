@@ -1,0 +1,211 @@
+name: VigilOS CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  NODE_VERSION: '20'
+  POSTGRES_VERSION: '15'
+  REDIS_VERSION: '7'
+
+jobs:
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            vigil-server/package-lock.json
+            vigil-app/package-lock.json
+
+      - name: Install server dependencies
+        working-directory: ./vigil-server
+        run: npm ci
+
+      - name: Install app dependencies
+        working-directory: ./vigil-app
+        run: npm ci
+
+      - name: Lint server code
+        working-directory: ./vigil-server
+        run: npm run lint
+
+      - name: Lint app code
+        working-directory: ./vigil-app
+        run: npm run lint
+
+      - name: Check formatting
+        working-directory: ./vigil-server
+        run: npx prettier --check "src/**/*.{js,jsx}"
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: lint
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: vigil_test
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            vigil-server/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./vigil-server
+        run: npm ci
+
+      - name: Run unit tests
+        working-directory: ./vigil-server
+        run: npm run test:unit
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/vigil_test
+          REDIS_URL: redis://localhost:6379
+
+      - name: Run integration tests
+        working-directory: ./vigil-server
+        run: npm run test:integration
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/vigil_test
+          REDIS_URL: redis://localhost:6379
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./vigil-server/coverage/lcov.info
+          flags: unittests
+
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        working-directory: ./vigil-server
+        run: npm ci
+
+      - name: Build server
+        working-directory: ./vigil-server
+        run: npm run build
+
+      - name: Install app dependencies
+        working-directory: ./vigil-app
+        run: npm ci
+
+      - name: Build app
+        working-directory: ./vigil-app
+        run: npm run build
+
+      - name: Upload server artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: server-dist
+          path: ./vigil-server/dist
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-dist
+          path: ./vigil-app/dist
+
+  docker:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download server artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: server-dist
+          path: ./vigil-server/dist
+
+      - name: Download app artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: app-dist
+          path: ./vigil-app/dist
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push server
+        uses: docker/build-push-action@v5
+        with:
+          context: ./vigil-server
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/vigil-server:latest
+            ${{ secrets.DOCKER_USERNAME }}/vigil-server:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push app
+        uses: docker/build-push-action@v5
+        with:
+          context: ./vigil-app
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/vigil-app:latest
+            ${{ secrets.DOCKER_USERNAME }}/vigil-app:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

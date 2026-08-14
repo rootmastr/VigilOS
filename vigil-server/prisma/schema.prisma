@@ -1,0 +1,242 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  tenantId      String
+  email         String    @unique
+  name          String
+  role          UserRole  @default(OFFICER)
+  status        UserStatus @default(ACTIVE)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@map("users")
+}
+
+model Vehicle {
+  id            String    @id @default(uuid())
+  tenantId      String
+  code          String    @unique
+  name          String
+  type          VehicleType @default(BUS)
+  lat           Float     @default(-6.9666)
+  lng           Float     @default(110.4196)
+  heading       Float     @default(0)
+  speed         Float     @default(0)
+  status        VehicleStatus @default(ACTIVE)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@map("vehicles")
+}
+
+model Incident {
+  id            String    @id @default(uuid())
+  tenantId      String
+  vehicleId     String
+  officerId     String
+  type          IncidentType
+  severity      IncidentSeverity @default(MEDIUM)
+  lat           Float     @default(-6.9666)
+  lng           Float     @default(110.4196)
+  description   String?
+  photos        String[]
+  videos        String[]
+  voiceNote     String?
+  status        IncidentStatus @default(OPEN)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@map("incidents")
+}
+
+model FieldReport {
+  id            String    @id @default(uuid())
+  tenantId      String
+  officerId     String
+  vehicleId     String?
+  type          ReportType
+  lat           Float     @default(-6.9666)
+  lng           Float     @default(110.4196)
+  description   String
+  photos        String[]
+  audio         String?
+  status        ReportStatus @default(DRAFT)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@map("field_reports")
+}
+
+model Telemetry {
+  id            String    @id @default(uuid())
+  vehicleId     String
+  lat           Float
+  lng           Float
+  speed         Float
+  heading       Float
+  timestamp     DateTime  @default(now())
+  
+  @@map("telemetry")
+  @@index([vehicleId, timestamp])
+}
+
+model Subscription {
+  id            String    @id @default(uuid())
+  tenantId      String    @unique
+  plan          SubscriptionPlan @default(TRIAL)
+  status        SubscriptionStatus @default(PENDING)
+  startDate     DateTime
+  endDate       DateTime?
+  vehicleCount  Int       @default(0)
+  officerCount  Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@map("subscriptions")
+}
+
+model Invoice {
+  id            String    @id @default(uuid())
+  tenantId      String
+  subscriptionId String
+  amount        Decimal
+  status        InvoiceStatus @default(PENDING)
+  dueDate       DateTime
+  paidDate      DateTime?
+  createdAt     DateTime  @default(now())
+  
+  @@map("invoices")
+}
+
+model APIKey {
+  id            String    @id @default(uuid())
+  tenantId      String
+  keyHash       String    @unique
+  name          String
+  scope         String[]
+  expiresAt     DateTime?
+  lastUsedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  
+  @@map("api_keys")
+}
+
+model AuditLog {
+  id            String    @id @default(uuid())
+  tenantId      String
+  userId        String
+  action        String
+  resource      String
+  resourceId    String?
+  details       Json?
+  ipAddress     String?
+  createdAt     DateTime  @default(now())
+  
+  @@map("audit_logs")
+  @@index([tenantId, createdAt])
+  @@index([userId, createdAt])
+}
+
+enum UserRole {
+  ADMIN
+  DISPATCHER
+  OFFICER
+  VIEWER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+  SUSPENDED
+}
+
+enum VehicleType {
+  BUS
+  MINIBUS
+  MICROBUS
+  SHUTTLE
+  PATROL
+  OTHER
+}
+
+enum VehicleStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+  OFFLINE
+}
+
+enum IncidentType {
+  PANIC_BUTTON
+  SPEED_VIOLATION
+  GEOFENCE_BREACH
+  HARSH_BRAKING
+  COLLISION
+  THEFT_ATTEMPT
+  MECHANICAL_FAILURE
+  ROUTE_DEVIATION
+  OTHER
+}
+
+enum IncidentSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IncidentStatus {
+  OPEN
+  INVESTIGATING
+  ESCALATED
+  RESOLVED
+  CLOSED
+}
+
+enum ReportType {
+  ROUTE_COMPLIANCE
+  VEHICLE_CONDITION
+  INCIDENT_WITNESS
+  WEATHER_CONDITION
+  ROAD_CONDITION
+  PASSENGER_COMPLAINT
+  OTHER
+}
+
+enum ReportStatus {
+  DRAFT
+  SUBMITTED
+  REVIEWED
+  ARCHIVED
+}
+
+enum SubscriptionPlan {
+  TRIAL
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+  EXPIRED
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+}

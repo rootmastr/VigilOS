@@ -1,0 +1,248 @@
+/**
+ * MQTT Broker & Ingestion Simulator
+ * Simulates high-concurrency MQTT telemetry and emergency panic button ingestion pipeline.
+ * Topics:
+ *   - Ingestion: `fleet/{device_id}/telemetry`
+ *   - Emergency: `fleet/{device_id}/emergency`
+ *   - Downstream Control: `fleet/{device_id}/control`
+ */
+
+import { postgresDB } from '../database/postgresAdapter.js';
+import { refreshDevicePresence, updateDeviceState } from '../cache/cacheService.js';
+
+export class MQTTBrokerSimulator {
+  constructor(speedEvaluator, onSocketBroadcast) {
+    this.speedEvaluator = speedEvaluator;
+    this.onSocketBroadcast = onSocketBroadcast;
+    this.telemetryIntervals = new Map();
+    this.isStreaming = false;
+    // Emergency queue for multiple simultaneous emergencies
+    this.emergencyQueue = [];
+  }
+
+  startIngestionPipeline() {
+    if (this.isStreaming) return;
+    this.isStreaming = true;
+
+    const vehicles = postgresDB.getVehicles();
+    vehicles.forEach(vehicle => {
+      this.startVehicleTelemetryLoop(vehicle.id, vehicle.heartBeatIntervalSec || 10);
+    });
+
+    console.log('[MQTT Broker] Ingestion pipeline operational across fleet topics `fleet/{device_id}/telemetry`');
+  }
+
+  startVehicleTelemetryLoop(vehicleId, intervalSec) {
+    // Clear any existing timer for this vehicle
+    if (this.telemetryIntervals.has(vehicleId)) {
+      clearInterval(this.telemetryIntervals.get(vehicleId));
+    }
+
+    const intervalMs = intervalSec * 1000;
+    const timer = setInterval(() => {
+      this.publishVehicleTelemetry(vehicleId);
+    }, Math.max(1000, intervalMs));
+
+    this.telemetryIntervals.set(vehicleId, timer);
+  }
+
+  publishVehicleTelemetry(vehicleId) {
+    const vehicle = postgresDB.getVehicleById(vehicleId);
+    if (!vehicle) return;
+
+    // Simulate location movement delta
+    const deltaLat = (Math.random() - 0.5) * 0.0012;
+    const deltaLng = (Math.random() - 0.5) * 0.0012;
+    const newLat = vehicle.lat + deltaLat;
+    const newLng = vehicle.lng + deltaLng;
+    
+    // Simulate speed variations (with periodic speed spikes to trigger speed anomaly evaluator)
+    let newSpeed = vehicle.speed;
+    if (vehicle.status === 'emergency') {
+      newSpeed = Math.min(85, Math.max(0, vehicle.speed + (Math.random() - 0.5) * 15));
+    } else {
+      // Occasional speed boost to test threshold
+      const speedBoost = Math.random() < 0.15 ? 18 : 0;
+      newSpeed = Math.max(15, Math.min(75, vehicle.speed + (Math.random() - 0.5) * 6 + speedBoost));
+    }
+
+    const newPassengers = Math.max(0, Math.min(80, vehicle.passengers + Math.floor((Math.random() - 0.5) * 4)));
+    const newHeading = Math.round((vehicle.heading + (Math.random() - 0.5) * 20 + 360) % 360);
+
+    const telemetryPayload = {
+      topic: `fleet/${vehicleId}/telemetry`,
+      vehicleId,
+      lat: newLat,
+      lng: newLng,
+      speed: newSpeed,
+      heading: newHeading,
+      passengers: newPassengers,
+      timestamp: new Date().toISOString()
+    };
+
+    // Process stream through speed evaluator
+    const evalResult = this.speedEvaluator.evaluateTelemetry(telemetryPayload);
+
+    // If speed evaluator updated heartbeat interval, adjust loop timer
+    if (evalResult.heartBeatIntervalSec && vehicle.heartBeatIntervalSec !== evalResult.heartBeatIntervalSec) {
+      this.startVehicleTelemetryLoop(vehicleId, evalResult.heartBeatIntervalSec);
+    }
+
+    // ── Redis: Refresh device presence (30s TTL) and update latest state cache ──
+    refreshDevicePresence(vehicleId);
+    updateDeviceState(vehicleId, {
+      lat: newLat,
+      lng: newLng,
+      speed: newSpeed,
+      heading: newHeading,
+      passengers: newPassengers,
+      status: vehicle.status,
+      timestamp: telemetryPayload.timestamp,
+    });
+
+    // Broadcast live update over WebSocket to Command Center dashboard
+    if (this.onSocketBroadcast) {
+      this.onSocketBroadcast('telemetry_update', {
+        vehicleId,
+        lat: newLat,
+        lng: newLng,
+        speed: newSpeed,
+        heading: newHeading,
+        passengers: newPassengers,
+        status: vehicle.status,
+        heartBeatIntervalSec: evalResult.heartBeatIntervalSec,
+        anomaly: evalResult.anomaly
+      });
+    }
+  }
+
+  // Handle MQTT Emergency Panic Button trigger payload
+  handleEmergencyPublish(vehicleId, details) {
+    const vehicle = postgresDB.getVehicleById(vehicleId);
+    if (!vehicle) return null;
+
+    // Set vehicle status to emergency and scale heartbeat to 1s
+    postgresDB.updateVehicleStatus(vehicleId, 'emergency', 1);
+    this.startVehicleTelemetryLoop(vehicleId, 1);
+
+    // Record incident in audit trail
+    const incidentRecord = postgresDB.createIncidentRecord({
+      vehicleId,
+      type: 'PANIC_BUTTON',
+      severity: 'CRITICAL',
+      location: { lat: vehicle.lat, lng: vehicle.lng },
+      details: details || `Emergency Panic Button triggered on board ${vehicle.code} (${vehicle.name}).`
+    });
+
+    // Add to emergency queue
+    this.emergencyQueue.push({
+      incidentId: incidentRecord.id,
+      vehicleId,
+      vehicleCode: vehicle.code,
+      timestamp: incidentRecord.timestamp,
+      status: 'ACTIVE'
+    });
+
+    // Broadcast emergency alert with queue info
+    if (this.onSocketBroadcast) {
+      this.onSocketBroadcast('emergency_alert', {
+        incident: incidentRecord,
+        vehicle: postgresDB.getVehicleById(vehicleId),
+        queue: this.emergencyQueue,
+        queueIndex: this.emergencyQueue.length - 1
+      });
+
+      // Also broadcast queue update for other connected clients
+      this.onSocketBroadcast('emergency_queue_update', {
+        queue: this.emergencyQueue,
+        totalActive: this.emergencyQueue.filter(e => e.status === 'ACTIVE').length
+      });
+    }
+
+    console.log(`[MQTT Broker] EMERGENCY TRIGGERED on topic \`fleet/${vehicleId}/emergency\`: Incident ID ${incidentRecord.id}. Queue size: ${this.emergencyQueue.length}`);
+    return incidentRecord;
+  }
+
+  // Remove resolved emergency from queue
+  removeFromEmergencyQueue(incidentId) {
+    this.emergencyQueue = this.emergencyQueue.filter(e => e.incidentId !== incidentId);
+    if (this.onSocketBroadcast) {
+      this.onSocketBroadcast('emergency_queue_update', {
+        queue: this.emergencyQueue,
+        totalActive: this.emergencyQueue.filter(e => e.status === 'ACTIVE').length
+      });
+    }
+  }
+
+  /**
+   * Process an authenticated external REST telemetry packet from edge hardware
+   * (ESP8266/ESP32). Runs the payload through the speed evaluator which persists
+   * the point to PostgreSQL (PostGIS) and InfluxDB (time-series), and broadcasts
+   * the live update over WebSocket to the Command Center.
+   */
+  ingestExternalTelemetry({ vehicleId, lat, lng, speed, heading, passengers }) {
+    const vehicle = postgresDB.getVehicleById(vehicleId);
+    if (!vehicle) return { error: 'Vehicle not found' };
+
+    const toNum = (v, fallback) => (Number.isFinite(Number(v)) ? Number(v) : fallback);
+
+    const telemetryPayload = {
+      topic: `fleet/${vehicleId}/telemetry`,
+      vehicleId,
+      lat: toNum(lat, vehicle.lat),
+      lng: toNum(lng, vehicle.lng),
+      speed: toNum(speed, 0),
+      heading: toNum(heading, 0),
+      passengers: toNum(passengers, 0),
+      timestamp: new Date().toISOString()
+    };
+
+    const evalResult = this.speedEvaluator.evaluateTelemetry(telemetryPayload);
+
+    if (evalResult.heartBeatIntervalSec && vehicle.heartBeatIntervalSec !== evalResult.heartBeatIntervalSec) {
+      this.startVehicleTelemetryLoop(vehicleId, evalResult.heartBeatIntervalSec);
+    }
+
+    // ── Redis: Refresh device presence (30s TTL) and update latest state cache ──
+    refreshDevicePresence(vehicleId);
+    updateDeviceState(vehicleId, {
+      lat: telemetryPayload.lat,
+      lng: telemetryPayload.lng,
+      speed: telemetryPayload.speed,
+      heading: telemetryPayload.heading,
+      passengers: telemetryPayload.passengers,
+      status: vehicle.status,
+      timestamp: telemetryPayload.timestamp,
+    });
+
+    if (this.onSocketBroadcast) {
+      this.onSocketBroadcast('telemetry_update', {
+        vehicleId,
+        lat: telemetryPayload.lat,
+        lng: telemetryPayload.lng,
+        speed: telemetryPayload.speed,
+        heading: telemetryPayload.heading,
+        passengers: telemetryPayload.passengers,
+        status: vehicle.status,
+        heartBeatIntervalSec: evalResult.heartBeatIntervalSec,
+        anomaly: evalResult.anomaly
+      });
+    }
+
+    return { telemetry: telemetryPayload, evaluation: evalResult };
+  }
+
+  // Process control command sent to vehicle
+  publishControlCommand(controlSignal) {
+    console.log(`[MQTT Broker] Control signal published to \`${controlSignal.topic}\`:`, controlSignal);
+    if (this.onSocketBroadcast) {
+      this.onSocketBroadcast('control_signal', controlSignal);
+    }
+  }
+
+  stop() {
+    this.telemetryIntervals.forEach(timer => clearInterval(timer));
+    this.telemetryIntervals.clear();
+    this.isStreaming = false;
+  }
+}

@@ -1,0 +1,57 @@
+# Prometheus Configuration for VigilOS
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+# Alert Rules
+rule_files:
+  - "alerts/*.yml"
+
+# Alertmanager
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+# Scrape Configs
+scrape_configs:
+  # VigilOS Server Metrics
+  - job_name: 'vigil-server'
+    static_configs:
+      - targets: ['vigil-server:3000']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    
+  # Node.js Process Metrics
+  - job_name: 'nodejs'
+    static_configs:
+      - targets: ['vigil-server:3000']
+    metrics_path: '/metrics/node'
+    
+  # PostgreSQL Metrics
+  - job_name: 'postgresql'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+    
+  # Redis Metrics
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    
+  # InfluxDB Metrics
+  - job_name: 'influxdb'
+    static_configs:
+      - targets: ['influxdb:8086']
+    metrics_path: '/metrics'
+    
+  # Mosquitto MQTT Metrics
+  - job_name: 'mosquitto'
+    static_configs:
+      - targets: ['mosquitto-exporter:9234']
+    
+  # System Metrics (Node Exporter)
+  - job_name: 'system'
+    static_configs:
+      - targets: ['node-exporter:9100']
