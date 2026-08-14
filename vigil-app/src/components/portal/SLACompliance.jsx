@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Shield, CheckCircle, Clock, Activity } from 'lucide-react';
 
-const BACKEND_URL = 'http://localhost:4000';
+const BACKEND_URL = '';
 
 // SVG Gauge Component for Uptime Visualization
 function UptimeGauge({ actual, guaranteed, label }) {

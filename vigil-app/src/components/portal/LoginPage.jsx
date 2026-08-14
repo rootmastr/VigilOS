@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 
-const BACKEND_URL = 'http://localhost:4000';
+const BACKEND_URL = '';
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_MS = 30000;
 

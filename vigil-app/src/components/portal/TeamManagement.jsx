@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Users, UserPlus, Shield, Mail, CheckCircle, XCircle } from 'lucide-react';
 
-const BACKEND_URL = 'http://localhost:4000';
+const BACKEND_URL = '';
 
 export default function TeamManagement({ user }) {
   const [users, setUsers] = useState([]);

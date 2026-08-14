@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, CheckCircle, Clock, ArrowUpCircle, Download } from 'lucide-react';
 
-const BACKEND_URL = 'http://localhost:4000';
+const BACKEND_URL = '';
 
 const PLANS = [
   { id: 'BASIC', name: 'Basic', price: 5000000, deviceLimit: 10, features: ['Vehicle tracking', 'Basic alerts', 'Standard support'], color: 'var(--text-muted)' },

@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 import { INITIAL_VEHICLES } from '../data/mockData';
 import { LOGISTIK_A_VEHICLES, LOGISTIK_A_DRIVERS, LOGISTIK_A_INCIDENTS } from '../data/mockDataLogistik';
 
-const BACKEND_URL = 'http://localhost:4000';
+const BACKEND_URL = '';
 
 export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsemarang-01') {
   // Load initial data based on tenant

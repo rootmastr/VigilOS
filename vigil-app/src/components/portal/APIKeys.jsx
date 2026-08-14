@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Key, Plus, Copy, Trash2, CheckCircle } from 'lucide-react';
 
-const BACKEND_URL = 'http://localhost:4000';
+const BACKEND_URL = '';
 
 export default function APIKeys({ user: _user }) {
   const [keys, setKeys] = useState([]);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bus, Users, AlertTriangle, Shield, CreditCard, Key, AlertCircle, ArrowUpCircle } from 'lucide-react';
 
-const BACKEND_URL = 'http://localhost:4000';
+const BACKEND_URL = '';
 
 export default function PortalDashboard({ user: _user }) {
   const [stats, setStats] = useState(null);
