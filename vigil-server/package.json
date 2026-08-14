@@ -23,6 +23,8 @@
     "express": "^4.19.2",
     "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.3",
+    "prisma": "^6.9.0",
+    "@prisma/client": "^6.9.0",
     "socket.io": "^4.7.5",
     "ws": "^8.17.0"
   },
