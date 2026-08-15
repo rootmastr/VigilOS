@@ -1156,6 +1156,19 @@ Thank you for your subscription!
     });
   });
 
+  // POST /api/v1/admin/reset-rate-limit - Reset login rate limit (admin only)
+  router.post('/admin/reset-rate-limit', (req, res) => {
+    const { ipAddress } = req.body;
+    if (!ipAddress) {
+      return res.status(400).json({ success: false, error: 'ipAddress is required' });
+    }
+    resetLoginRateLimit(ipAddress).then(() => {
+      res.json({ success: true, message: `Rate limit reset for ${ipAddress}` });
+    }).catch((err) => {
+      res.status(500).json({ success: false, error: err.message });
+    });
+  });
+
   router.get('/health', (req, res) => {
     const health = metricsService.getHealthStatus();
     res.json(health);

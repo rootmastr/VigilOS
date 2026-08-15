@@ -6,7 +6,7 @@ import '../models/user.dart';
 import 'storage_service.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://localhost:4000/api/v1';
+  static const String baseUrl = 'http://111.68.31.232:4141/api/v1';
   static final StorageService _storage = StorageService();
 
   static String? _token;
@@ -28,7 +28,7 @@ class AuthService {
       if (response.statusCode == 200) {
         final body = json.decode(response.body);
         if (body['success'] == true) {
-          _token = body['data']['token'];
+          _token = body['data']['accessToken'] ?? body['data']['token'];
           _currentUser = User.fromJson(body['data']['user']);
           await _saveToken(_token!);
           await _saveUser(_currentUser!);
@@ -60,10 +60,10 @@ class AuthService {
         }),
       );
 
-      if (response.statusCode == 201) {
+      if (response.statusCode == 201 || response.statusCode == 200) {
         final body = json.decode(response.body);
         if (body['success'] == true) {
-          _token = body['data']['token'];
+          _token = body['data']['accessToken'] ?? body['data']['token'];
           _currentUser = User.fromJson(body['data']['user']);
           await _saveToken(_token!);
           await _saveUser(_currentUser!);

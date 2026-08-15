@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:provider/provider.dart';
 import '../models/incident.dart';
 import 'api_service.dart';
 
@@ -12,23 +11,16 @@ class NotificationService {
 
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
-  
+
   String? _fcmToken;
   Function(String)? onTokenRefresh;
   Function(RemoteMessage)? onMessageReceived;
   Function(String)? onNotificationTap;
 
   Future<void> initialize() async {
-    // Request permission
     await _requestPermission();
-    
-    // Initialize local notifications
     await _initializeLocalNotifications();
-    
-    // Get FCM token
     await _getFCMToken();
-    
-    // Configure message handlers
     _configureMessageHandlers();
   }
 
@@ -55,7 +47,7 @@ class NotificationService {
       requestBadgePermission: false,
       requestSoundPermission: false,
     );
-    
+
     const initSettings = InitializationSettings(
       android: androidSettings,
       iOS: iosSettings,
@@ -70,7 +62,7 @@ class NotificationService {
   Future<void> _getFCMToken() async {
     _fcmToken = await _firebaseMessaging.getToken();
     print('FCM Token: $_fcmToken');
-    
+
     _firebaseMessaging.onTokenRefresh.listen((token) {
       _fcmToken = token;
       onTokenRefresh?.call(token);
@@ -78,33 +70,20 @@ class NotificationService {
   }
 
   void _configureMessageHandlers() {
-    // Handle foreground messages
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-    
-    // Handle background messages
     FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpenedApp);
-    
-    // Handle terminated state
     _handleTerminatedState();
   }
 
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
     print('Foreground message: ${message.messageId}');
-    
-    // Show local notification
     await _showLocalNotification(message);
-    
-    // Notify listener
     onMessageReceived?.call(message);
-    
-    // Handle data
     _processMessageData(message.data);
   }
 
   Future<void> _handleMessageOpenedApp(RemoteMessage message) async {
     print('Message opened app: ${message.messageId}');
-    
-    // Handle navigation based on message type
     _handleNotificationNavigation(message.data);
   }
 
@@ -153,7 +132,7 @@ class NotificationService {
 
   void _processMessageData(Map<String, dynamic> data) {
     final type = data['type'];
-    
+
     switch (type) {
       case 'PANIC_ALERT':
         _handlePanicAlert(data);
@@ -173,30 +152,23 @@ class NotificationService {
   }
 
   void _handlePanicAlert(Map<String, dynamic> data) {
-    // Navigate to panic screen or show urgent dialog
     print('Panic alert received: ${data['vehicleId']}');
   }
 
   void _handleSpeedViolation(Map<String, dynamic> data) {
-    // Show speed violation dialog
     print('Speed violation: ${data['speed']} km/h');
   }
 
   void _handleGeofenceBreach(Map<String, dynamic> data) {
-    // Show geofence breach alert
     print('Geofence breach: ${data['vehicleId']}');
   }
 
   void _handleIncidentUpdate(Map<String, dynamic> data) {
-    // Update incident list
     print('Incident updated: ${data['incidentId']}');
   }
 
   void _handleNotificationNavigation(Map<String, dynamic> data) {
     final type = data['type'];
-    final id = data['id'];
-    
-    // Navigate to appropriate screen based on type
     onNotificationTap?.call(type);
   }
 
@@ -218,9 +190,7 @@ class NotificationService {
 
   Future<void> updateTokenOnServer() async {
     if (_fcmToken != null) {
-      // Update token on server
-      final api = Provider.of<ApiService>(navigatorKey.currentContext!, listen: false);
-      await api.updateFCMToken(_fcmToken!);
+      await ApiService.updateFCMToken(_fcmToken!);
     }
   }
 
@@ -248,6 +218,3 @@ class NotificationService {
     );
   }
 }
-
-// Global navigator key for navigation
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();

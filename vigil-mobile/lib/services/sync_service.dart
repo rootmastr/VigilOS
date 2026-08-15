@@ -81,12 +81,11 @@ class SyncService {
   Future<void> syncPendingReports() async {
     if (_pendingReports.isEmpty || !_isOnline) return;
 
-    final api = ApiService();
     List<FieldReport> failedReports = [];
 
     for (final report in _pendingReports) {
       try {
-        await api.syncFieldReport(report);
+        await ApiService.syncFieldReport(report);
       } catch (e) {
         failedReports.add(report);
       }

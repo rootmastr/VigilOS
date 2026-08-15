@@ -46,6 +46,16 @@ dependencies:
   geolocator: ^12.0.0
   sqflite: ^2.3.0
   path: ^1.9.0
+  # Charts
+  fl_chart: ^0.68.0
+  # Connectivity & offline sync
+  connectivity_plus: ^6.0.0
+  # Geocoding for address lookup
+  geocoding: ^3.0.0
+  # Permission handling
+  permission_handler: ^11.0.0
+  # Date formatting
+  intl: ^0.19.0
 
 dev_dependencies:
   flutter_test:

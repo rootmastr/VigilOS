@@ -5,7 +5,7 @@ import '../models/officer.dart';
 import 'auth_service.dart';
 
 class WebSocketService {
-  static const String serverUrl = 'http://localhost:4000';
+  static const String serverUrl = 'http://111.68.31.232:4141';
   IO.Socket? socket;
 
   Function(List<Vehicle>)? onVehiclesUpdate;

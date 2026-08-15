@@ -1,7 +1,7 @@
 class AppConstants {
   // API
-  static const String apiBaseUrl = 'http://localhost:3000/api/v1';
-  static const String wsUrl = 'ws://localhost:3000/ws';
+  static const String apiBaseUrl = 'http://111.68.31.232:4141/api/v1';
+  static const String wsUrl = 'http://111.68.31.232:4141';
   static const Duration apiTimeout = Duration(seconds: 30);
 
   // Storage Keys

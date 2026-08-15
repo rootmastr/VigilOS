@@ -23,8 +23,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   Future<void> _loadAnalytics() async {
     setState(() => _isLoading = true);
     try {
-      final api = context.read<ApiService>();
-      final data = await api.getAnalytics(_selectedPeriod);
+      final data = await ApiService.getAnalytics(_selectedPeriod);
       setState(() {
         _analytics = data;
         _isLoading = false;

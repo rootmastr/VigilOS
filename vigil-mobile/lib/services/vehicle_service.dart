@@ -7,7 +7,6 @@ class VehicleService {
   factory VehicleService() => _instance;
   VehicleService._internal();
 
-  final ApiService _api = ApiService();
   Timer? _refreshTimer;
 
   List<Vehicle> _vehicles = [];
@@ -26,8 +25,7 @@ class VehicleService {
 
   Future<void> fetchVehicles({String? status, String? type}) async {
     try {
-      final response = await _api.getVehicles(status: status, type: type);
-      _vehicles = response;
+      _vehicles = await ApiService.getVehicles(status: status, type: type);
       onVehiclesUpdate?.call(_vehicles);
     } catch (e) {
       print('Failed to fetch vehicles: $e');

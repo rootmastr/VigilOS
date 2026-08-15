@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/auth_service.dart';
+import '../profile_screen.dart';
+import 'change_password_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -118,13 +119,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: const Text('Profile'),
                 leading: const Icon(Icons.person),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () {},
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
+                },
               ),
               ListTile(
                 title: const Text('Change Password'),
                 leading: const Icon(Icons.lock),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () {},
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const ChangePasswordScreen()));
+                },
               ),
               ListTile(
                 title: const Text('Logout'),
@@ -270,7 +275,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           TextButton(
             onPressed: () {
-              context.read<AuthService>().logout();
+              AuthService.logout();
               Navigator.pop(context);
               Navigator.pushReplacementNamed(context, '/login');
             },

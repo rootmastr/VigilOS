@@ -3,6 +3,9 @@ import '../../theme/app_theme.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_service.dart';
 import '../profile_screen.dart';
+import '../analytics/analytics_screen.dart';
+import 'system_config_screen.dart';
+import 'device_token_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({Key? key}) : super(key: key);
@@ -15,6 +18,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int totalVehicles = 0;
   int totalIncidents = 0;
   int totalDrivers = 0;
+  int totalOfficers = 0;
   bool isLoading = true;
 
   @override
@@ -25,13 +29,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<void> _loadStats() async {
     try {
-      final vehicles = await ApiService.getVehicles();
-      final incidents = await ApiService.getIncidents();
+      final results = await Future.wait([
+        ApiService.getVehicles(),
+        ApiService.getIncidents(),
+        ApiService.getOfficers(),
+      ]);
+      final vehicles = results[0] as List;
+      final incidents = results[1] as List;
+      final officers = results[2] as List;
       if (mounted) {
         setState(() {
           totalVehicles = vehicles.length;
           totalIncidents = incidents.length;
           totalDrivers = vehicles.length;
+          totalOfficers = officers.length;
           isLoading = false;
         });
       }
@@ -114,7 +125,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     children: [
                       Expanded(child: _buildStatCard(Icons.people, 'Drivers', totalDrivers.toString(), AppTheme.statusGreen)),
                       const SizedBox(width: 12),
-                      Expanded(child: _buildStatCard(Icons.security, 'Officers', '4', AppTheme.accentBlue)),
+                      Expanded(child: _buildStatCard(Icons.security, 'Officers', totalOfficers.toString(), AppTheme.accentBlue)),
                     ],
                   ),
                   const SizedBox(height: 24),
@@ -122,11 +133,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   const Text('QUICK ACTIONS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppTheme.textMuted)),
                   const SizedBox(height: 12),
 
-                  _buildActionCard(Icons.settings, 'System Configuration', 'Manage tenants, roles & platform settings', () {}),
+                  _buildActionCard(Icons.settings, 'System Configuration', 'Manage tenants, roles & platform settings', () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const SystemConfigScreen()));
+                  }),
                   const SizedBox(height: 8),
-                  _buildActionCard(Icons.analytics, 'Analytics & Reports', 'View fleet performance & incident analytics', () {}),
+                  _buildActionCard(Icons.analytics, 'Analytics & Reports', 'View fleet performance & incident analytics', () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsScreen()));
+                  }),
                   const SizedBox(height: 8),
-                  _buildActionCard(Icons.token, 'Device Token Management', 'Generate & manage IoT device tokens', () {}),
+                  _buildActionCard(Icons.token, 'Device Token Management', 'Generate & manage IoT device tokens', () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const DeviceTokenScreen()));
+                  }),
                 ],
               ),
             ),
