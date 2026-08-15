@@ -12,7 +12,7 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 APP_DIR="/opt/vigilos"
-REPO_URL="https://github.com/rootmastr/sun.git"
+REPO_URL="https://github.com/rootmastr/VigilOS.git"
 BRANCH="main"
 
 echo -e "${YELLOW}=== VigilOS - Server Deployment ===${NC}"
