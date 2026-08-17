@@ -28,14 +28,16 @@ app.use(ddosProtection);
 app.use(auditLogger);
 
 // Core Middleware
-app.use(cors());
+const corsOrigin = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : '*';
+app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(express.json());
 
 // Socket.io Real-time WebSocket Server setup (legacy)
 const io = new SocketIOServer(server, {
   cors: {
-    origin: '*',
-    methods: ['GET', 'POST']
+    origin: corsOrigin,
+    methods: ['GET', 'POST'],
+    credentials: true
   }
 });
 

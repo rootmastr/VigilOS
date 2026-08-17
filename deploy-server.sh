@@ -137,8 +137,10 @@ docker-compose -f docker-compose.prod.yml exec -T server npx prisma migrate depl
 
 echo ""
 echo -e "${GREEN}=== VigilOS deployed successfully! ===${NC}"
-echo -e "${GREEN}Frontend: https://$(hostname -I | awk '{print $1}')${NC}"
-echo -e "${GREEN}API: https://$(hostname -I | awk '{print $1}')/api/${NC}"
+echo -e "${GREEN}Frontend: http://$(hostname -I | awk '{print $1}'):8181${NC}"
+echo -e "${GREEN}Backend API: http://$(hostname -I | awk '{print $1}'):4141/api/${NC}"
+echo -e "${GREEN}WebSocket: ws://$(hostname -I | awk '{print $1}'):4141/ws${NC}"
+echo -e "${GREEN}Socket.io: http://$(hostname -I | awk '{print $1}'):8181/socket.io/${NC}"
 echo ""
 echo -e "${YELLOW}Useful commands:${NC}"
 echo "  cd $APP_DIR"

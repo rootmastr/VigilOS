@@ -46,8 +46,8 @@ const char* WIFI_SSID     = "Disapa kopi";
 const char* WIFI_PASSWORD = "disapa24jam";
 
 // VigilOS Backend
-const char* SERVER_HOST    = "192.168.1.100";  // Change to your server IP/hostname
-const uint16_t SERVER_PORT = 4000;
+const char* SERVER_HOST    = "111.68.31.232";  // VigilOS Backend Server
+const uint16_t SERVER_PORT = 4141;
 const char* TELEMETRY_PATH = "/api/v1/telemetry/ingest";
 const char* EMERGENCY_PATH = "/api/v1/emergency/trigger";
 
@@ -55,7 +55,7 @@ const char* EMERGENCY_PATH = "/api/v1/emergency/trigger";
 const char* DEVICE_ID      = "TS-101";   // Vehicle code (e.g., TS-101 for TransSemarang)
 
 // Device token — generate via Command Center Fleet Admin, paste here
-const char* DEVICE_TOKEN   = "vgl_live_PASTE_YOUR_TOKEN_HERE";
+const char* DEVICE_TOKEN   = "vgl_live_3b4195868d2cb3bcc706a9708d46347b";
 
 // Timing intervals (milliseconds)
 #define TELEMETRY_INTERVAL_MS    10000UL    // Send telemetry every 10s

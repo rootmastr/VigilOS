@@ -79,6 +79,7 @@ services:
       INFLUX_TOKEN: ${INFLUX_TOKEN}
       JWT_SECRET: ${JWT_SECRET}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      CORS_ORIGIN: http://111.68.31.232:8181,http://localhost:8181
     volumes:
       - ./vigil-server:/app
       - /app/node_modules
