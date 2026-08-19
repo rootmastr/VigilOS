@@ -56,8 +56,21 @@ if [ -d ".git" ]; then
     echo -e "${YELLOW}Pulling latest changes...${NC}"
     git pull origin "$BRANCH"
 else
+    # Directory exists but no .git — clean it first
+    if [ "$(ls -A)" ]; then
+        echo -e "${YELLOW}Cleaning existing files in $APP_DIR...${NC}"
+        rm -rf "$APP_DIR"/*
+        rm -rf "$APP_DIR"/.[!.]*
+    fi
     echo -e "${YELLOW}Cloning repository...${NC}"
     git clone -b "$BRANCH" --depth 1 "$REPO_URL" .
+fi
+
+# Fix: If repo cloned into subdirectory, move contents up
+if [ -d "VigilOS" ] && [ -d "VigilOS/.git" ]; then
+    echo -e "${YELLOW}Moving repo contents from VigilOS/ to $APP_DIR/...${NC}"
+    mv VigilOS/* VigilOS/.* . 2>/dev/null || true
+    rmdir VigilOS 2>/dev/null || true
 fi
 
 # Create .env file if it doesn't exist
