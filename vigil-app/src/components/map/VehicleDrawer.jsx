@@ -183,10 +183,10 @@ export default function VehicleDrawer({ vehicle, onClose }) {
           <div className="telemetry-section-title">Driver Information</div>
           <div className="driver-card">
             <div className="driver-avatar">
-              {vehicle.driver.split(' ').map(n => n[0]).join('').slice(0, 2)}
+              {vehicle.driver ? vehicle.driver.split(' ').map(n => n[0]).join('').slice(0, 2) : '?'}
             </div>
             <div>
-              <div className="driver-name">{vehicle.driver}</div>
+              <div className="driver-name">{vehicle.driver || 'Unassigned'}</div>
               <div className="driver-id">{vehicle.driverId}</div>
             </div>
           </div>

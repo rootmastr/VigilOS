@@ -10,7 +10,7 @@ const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('vigil_auth_token');
+    const token = localStorage.getItem('vigil_access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -31,13 +31,13 @@ api.interceptors.response.use(
         const refreshToken = localStorage.getItem('vigil_refresh_token');
         if (refreshToken) {
           const response = await axios.post('/api/v1/auth/refresh', { refreshToken });
-          const { token } = response.data.data;
-          localStorage.setItem('vigil_auth_token', token);
-          originalRequest.headers.Authorization = `Bearer ${token}`;
+          const { accessToken } = response.data.data;
+          localStorage.setItem('vigil_access_token', accessToken);
+          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
           return api(originalRequest);
         }
       } catch (refreshError) {
-        localStorage.removeItem('vigil_auth_token');
+        localStorage.removeItem('vigil_access_token');
         localStorage.removeItem('vigil_refresh_token');
         localStorage.removeItem('vigil_user');
         window.location.href = '/';

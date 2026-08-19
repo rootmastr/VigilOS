@@ -69,17 +69,14 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: vigil_prod
-      DB_USER: vigil_admin
-      DB_PASSWORD: ${DB_PASSWORD}
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?schema=public
       REDIS_URL: redis://redis:6379
-      INFLUX_URL: http://influxdb:8086
-      INFLUX_TOKEN: ${INFLUX_TOKEN}
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_TOKEN: ${INFLUX_TOKEN}
       JWT_SECRET: ${JWT_SECRET}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
-      CORS_ORIGIN: http://111.68.31.232:8181,http://localhost:8181
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      MQTT_BROKER_URL: mqtt://mosquitto:1883
     volumes:
       - ./vigil-server:/app
       - /app/node_modules

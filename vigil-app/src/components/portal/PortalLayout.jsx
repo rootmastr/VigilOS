@@ -9,19 +9,24 @@ import {
   LogOut,
   ChevronLeft,
   Building2,
+  Settings,
+  Puzzle,
 } from 'lucide-react';
 
 // Role-based portal page access
 const ROLE_PORTAL_ACCESS = {
-  SUPER_ADMIN:       ['portal-dashboard', 'portal-team', 'portal-billing', 'portal-sla', 'portal-apikeys'],
-  TENANT_ADMIN:      ['portal-dashboard', 'portal-team', 'portal-billing', 'portal-sla', 'portal-apikeys'],
+  SUPER_ADMIN:       ['portal-dashboard', 'portal-team', 'portal-billing', 'portal-sla', 'portal-apikeys', 'portal-settings', 'portal-features', 'portal-tenants'],
+  TENANT_ADMIN:      ['portal-dashboard', 'portal-team', 'portal-billing', 'portal-sla', 'portal-apikeys', 'portal-settings'],
   TENANT_FINANCE:    ['portal-billing'],
-  TENANT_DISPATCHER: [],  // No portal access
+  TENANT_DISPATCHER: [],
   TENANT_AUDITOR:    ['portal-sla'],
   COMMAND_CENTER_OPERATOR: [],
   PATROL_OFFICER:    [],
   PUBLIC_USER:       [],
 };
+
+// Platform-level pages (SUPER_ADMIN only)
+const PLATFORM_PAGES = ['portal-tenants', 'portal-features'];
 
 const PORTAL_NAV = [
   { id: 'portal-dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['SUPER_ADMIN', 'TENANT_ADMIN'] },
@@ -29,6 +34,9 @@ const PORTAL_NAV = [
   { id: 'portal-billing', icon: CreditCard, label: 'Billing & Plans', roles: ['SUPER_ADMIN', 'TENANT_ADMIN', 'TENANT_FINANCE'] },
   { id: 'portal-sla', icon: FileText, label: 'SLA & Compliance', roles: ['SUPER_ADMIN', 'TENANT_ADMIN', 'TENANT_AUDITOR'] },
   { id: 'portal-apikeys', icon: Key, label: 'API Keys', roles: ['SUPER_ADMIN', 'TENANT_ADMIN'] },
+  { id: 'portal-settings', icon: Settings, label: 'Settings', roles: ['SUPER_ADMIN', 'TENANT_ADMIN'] },
+  { id: 'portal-features', icon: Puzzle, label: 'Features', roles: ['SUPER_ADMIN'] },
+  { id: 'portal-tenants', icon: Building2, label: 'Tenants', roles: ['SUPER_ADMIN'] },
 ];
 
 export function canAccessPortal(role) {

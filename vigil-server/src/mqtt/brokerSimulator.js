@@ -25,11 +25,34 @@ export class MQTTBrokerSimulator {
     this.isStreaming = true;
 
     const vehicles = postgresDB.getVehicles();
+    const tokens = postgresDB.getDeviceTokens();
+    const activeDeviceIds = new Set(tokens.filter(t => t.status === 'ACTIVE').map(t => t.deviceId));
+
     vehicles.forEach(vehicle => {
-      this.startVehicleTelemetryLoop(vehicle.id, vehicle.heartBeatIntervalSec || 10);
+      if (activeDeviceIds.has(vehicle.id)) {
+        this.startVehicleTelemetryLoop(vehicle.id, vehicle.heartBeatIntervalSec || 10);
+        postgresDB.updateVehicleStatus(vehicle.id, 'normal', vehicle.heartBeatIntervalSec || 10);
+      } else {
+        postgresDB.updateVehicleStatus(vehicle.id, 'offline', vehicle.heartBeatIntervalSec || 10);
+      }
     });
 
-    console.log('[MQTT Broker] Ingestion pipeline operational across fleet topics `fleet/{device_id}/telemetry`');
+    console.log(`[MQTT Broker] Ingestion pipeline operational — ${activeDeviceIds.size}/${vehicles.length} devices connected`);
+  }
+
+  startDeviceTelemetry(vehicleId) {
+    const vehicle = postgresDB.getVehicleById(vehicleId);
+    if (!vehicle) return;
+    postgresDB.updateVehicleStatus(vehicleId, 'normal', vehicle.heartBeatIntervalSec || 10);
+    this.startVehicleTelemetryLoop(vehicleId, vehicle.heartBeatIntervalSec || 10);
+  }
+
+  stopDeviceTelemetry(vehicleId) {
+    if (this.telemetryIntervals.has(vehicleId)) {
+      clearInterval(this.telemetryIntervals.get(vehicleId));
+      this.telemetryIntervals.delete(vehicleId);
+    }
+    postgresDB.updateVehicleStatus(vehicleId, 'offline');
   }
 
   startVehicleTelemetryLoop(vehicleId, intervalSec) {

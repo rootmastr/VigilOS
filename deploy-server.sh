@@ -63,6 +63,7 @@ fi
 # Create .env file if it doesn't exist
 if [ ! -f ".env" ]; then
     echo -e "${YELLOW}Creating .env file...${NC}"
+    SERVER_IP=$(hostname -I | awk '{print $1}')
     cat > .env << EOF
 # Database Configuration
 DB_HOST=postgres
@@ -77,6 +78,7 @@ REDIS_URL=redis://redis:6379
 # InfluxDB Configuration
 INFLUX_URL=http://influxdb:8086
 INFLUX_TOKEN=$(openssl rand -base64 32)
+INFLUX_PASSWORD=$(openssl rand -base64 16)
 
 # JWT Configuration
 JWT_SECRET=$(openssl rand -base64 64)
@@ -96,7 +98,7 @@ NODE_ENV=production
 LOG_LEVEL=info
 
 # CORS Configuration
-CORS_ORIGIN=*
+CORS_ORIGIN=http://${SERVER_IP}:8181,http://localhost:8181
 EOF
     echo -e "${GREEN}.env file created with generated secrets${NC}"
     echo -e "${YELLOW}Important: Edit .env file to set your domain and other settings${NC}"

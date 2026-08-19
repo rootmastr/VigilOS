@@ -1,10 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Users, Bus, Truck, Building2, Wifi, WifiOff, ChevronDown, Check, LogOut, Shield, User } from 'lucide-react';
+import { Users, Bus, Truck, Building2, Wifi, WifiOff, ChevronDown, Check, LogOut, Shield, User, Loader2 } from 'lucide-react';
 
-const TENANTS = [
-  { id: 'transsemarang-01', name: 'PT TransSemarang', region: 'Jawa Tengah', industry: 'Public Transit' },
-  { id: 'logistik-a-01', name: 'PT Logistik A', region: 'Jabodetabek', industry: 'Logistics & Delivery' },
-  { id: 'tenant-3', name: 'Dishub Kota B', region: 'Jawa Tengah', industry: 'Government' },
+const FALLBACK_TENANTS = [
+  { id: 'ws-semarang-01', name: 'Dishub Kota Semarang', region: 'Jawa Tengah', industry: 'Government', planTier: 'ENTERPRISE' },
 ];
 
 // Roles that can access the portal
@@ -13,6 +11,9 @@ const PORTAL_ROLES = ['SUPER_ADMIN', 'TENANT_ADMIN', 'TENANT_FINANCE', 'TENANT_A
 export default function TopHeader({ activeUnits, operatorCount, connected, currentTenant, onTenantSwitch, sidebarCollapsed, user, onLogout, onSwitchToPortal }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [tenants, setTenants] = useState(FALLBACK_TENANTS);
+  const [tenantsLoading, setTenantsLoading] = useState(false);
+  const [tenantSearch, setTenantSearch] = useState('');
   const dropdownRef = useRef(null);
   const userMenuRef = useRef(null);
 
@@ -29,10 +30,37 @@ export default function TopHeader({ activeUnits, operatorCount, connected, curre
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const activeTenant = TENANTS.find(t => t.id === currentTenant) || TENANTS[0];
-  const TenantIcon = activeTenant.industry === 'Logistics & Delivery' ? Truck : Bus;
+  useEffect(() => {
+    fetchTenants();
+  }, [user]);
+
+  const fetchTenants = async () => {
+    setTenantsLoading(true);
+    try {
+      const token = localStorage.getItem('vigil_access_token');
+      const headers = { Authorization: `Bearer ${token}` };
+
+      if (user?.role === 'SUPER_ADMIN') {
+        const res = await fetch('/api/v1/tenants?take=100', { headers });
+        const data = await res.json();
+        if (data.success && data.data?.length) setTenants(data.data);
+      } else if (user?.tenantId) {
+        const res = await fetch(`/api/v1/tenants/${user.tenantId}`, { headers });
+        const data = await res.json();
+        if (data.success && data.data) setTenants([data.data]);
+      }
+    } catch (e) {
+      // Keep fallback
+    } finally {
+      setTenantsLoading(false);
+    }
+  };
+
+  const activeTenant = tenants.find(t => t.id === currentTenant) || tenants[0];
+  const TenantIcon = activeTenant?.industry === 'Logistics' ? Truck : Bus;
   const userInitials = user?.name?.split(' ').map(n => n[0]).join('').slice(0, 2) || 'AD';
   const canSeePortal = PORTAL_ROLES.includes(user?.role);
+  const canSwitchTenant = user?.role === 'SUPER_ADMIN';
 
   return (
     <header className="top-header">
@@ -48,18 +76,33 @@ export default function TopHeader({ activeUnits, operatorCount, connected, curre
       <div className="tenant-switcher" ref={dropdownRef}>
         <button
           className="tenant-switcher-btn"
-          onClick={() => setDropdownOpen(!dropdownOpen)}
+          onClick={() => canSwitchTenant && setDropdownOpen(!dropdownOpen)}
+          disabled={!canSwitchTenant}
+          style={!canSwitchTenant ? { cursor: 'default', opacity: 0.85 } : {}}
         >
           <TenantIcon size={14} />
           <span className="tenant-switcher-name">{activeTenant.name}</span>
-          <ChevronDown size={14} className={`tenant-switcher-chevron${dropdownOpen ? ' open' : ''}`} />
+          {canSwitchTenant && <ChevronDown size={14} className={`tenant-switcher-chevron${dropdownOpen ? ' open' : ''}`} />}
         </button>
 
         {dropdownOpen && (
           <div className="tenant-dropdown">
             <div className="tenant-dropdown-header">Switch Workspace</div>
-            {TENANTS.map(tenant => {
-              const TenantItemIcon = tenant.industry === 'Logistics & Delivery' ? Truck : Bus;
+            <input
+              className="tenant-search-input"
+              placeholder="Search tenants..."
+              value={tenantSearch}
+              onChange={e => setTenantSearch(e.target.value)}
+              autoFocus
+            />
+            {tenantsLoading ? (
+              <div style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                <Loader2 size={14} className="spin" style={{ marginBottom: 4 }} /> Loading...
+              </div>
+            ) : tenants
+              .filter(t => !tenantSearch || t.name.toLowerCase().includes(tenantSearch.toLowerCase()) || (t.region && t.region.toLowerCase().includes(tenantSearch.toLowerCase())))
+              .map(tenant => {
+                const TenantItemIcon = tenant.industry === 'Logistics' ? Truck : Bus;
               return (
                 <button
                   key={tenant.id}

@@ -15,14 +15,8 @@ class PostgresAdapter {
     // Master vehicle registry — EMPTY (add real vehicles via API)
     this.vehicles = [];
 
-    // Drivers Master Registry (keep existing drivers)
-    this.drivers = [
-      { id: 'DRV-101', name: 'Budi Santoso', vehicleId: 'UNASSIGNED', licenseNo: 'SIM-B2-99812', phone: '+62 812-3456-7890', safetyScore: 92, status: 'normal', trips: 142, hoursOnDuty: 5.2, tenantId: 'ws-semarang-01' },
-      { id: 'DRV-102', name: 'Siti Aminah', vehicleId: 'UNASSIGNED', licenseNo: 'SIM-B2-88714', phone: '+62 813-9876-5432', safetyScore: 88, status: 'normal', trips: 118, hoursOnDuty: 4.8, tenantId: 'ws-semarang-01' },
-      { id: 'DRV-103', name: 'Agus Setiawan', vehicleId: 'UNASSIGNED', licenseNo: 'SIM-B2-77123', phone: '+62 815-2233-4455', safetyScore: 95, status: 'normal', trips: 186, hoursOnDuty: 6.1, tenantId: 'ws-semarang-01' },
-      { id: 'DRV-104', name: 'Dewi Lestari', vehicleId: 'UNASSIGNED', licenseNo: 'SIM-B2-66541', phone: '+62 817-6677-8899', safetyScore: 78, status: 'normal', trips: 3.5, tenantId: 'ws-semarang-01' },
-      { id: 'DRV-105', name: 'Officer Hendra', vehicleId: 'UNASSIGNED', licenseNo: 'POL-A1-00912', phone: '+62 811-9988-7766', safetyScore: 98, status: 'normal', trips: 210, hoursOnDuty: 7.0, tenantId: 'ws-semarang-01' },
-    ];
+    // Drivers — EMPTY (add real drivers via API)
+    this.drivers = [];
 
     // Patrol Officers — EMPTY (add real officers via API)
     this.officers = [];
@@ -30,26 +24,20 @@ class PostgresAdapter {
     // Device Tokens — EMPTY (add real tokens via Fleet Admin)
     this.deviceTokens = [];
 
-    // Security Audit Log (Unauthorized token access attempts & revocations)
+    // Security Audit Log
     this.securityEvents = [];
 
     // Incident audit logs
     this.incidents = [];
 
-    // RBAC system users (passwords are bcrypt hashed)
+    // Auth users (required for login)
     this.users = [
       { id: 'usr-01', name: 'Cmdr. Rahmat', email: 'admin@vigilos.id', password: bcrypt.hashSync('admin123', 10), role: 'SUPER_ADMIN', tenantId: 'ws-semarang-01', avatar: null, isMfaEnabled: false, status: 'ACTIVE', createdAt: '2024-01-15T08:00:00Z' },
       { id: 'usr-02', name: 'Operator 04', email: 'operator@vigilos.id', password: bcrypt.hashSync('operator123', 10), role: 'COMMAND_CENTER_OPERATOR', tenantId: 'ws-semarang-01', avatar: null, isMfaEnabled: false, status: 'ACTIVE', createdAt: '2024-02-01T09:30:00Z' },
       { id: 'usr-03', name: 'Officer Hendra', email: 'hendra@vigilos.id', password: bcrypt.hashSync('officer123', 10), role: 'PATROL_OFFICER', tenantId: 'ws-semarang-01', officerId: 'OFF-101', avatar: null, isMfaEnabled: false, status: 'ACTIVE', createdAt: '2024-02-10T10:00:00Z' },
-      { id: 'usr-04', name: 'Public User', email: 'public@vigilos.id', password: bcrypt.hashSync('public123', 10), role: 'PUBLIC_USER', tenantId: 'ws-semarang-01', avatar: null, isMfaEnabled: false, status: 'ACTIVE', createdAt: '2024-03-01T08:00:00Z' },
-      { id: 'usr-05', name: 'Rina Wulandari', email: 'rina@semarang.go.id', password: bcrypt.hashSync('finance123', 10), role: 'TENANT_FINANCE', tenantId: 'ws-semarang-01', avatar: null, isMfaEnabled: true, status: 'ACTIVE', createdAt: '2024-03-15T09:00:00Z' },
-      { id: 'usr-06', name: 'Dispt. Joko', email: 'joko@semarang.go.id', password: bcrypt.hashSync('dispatch123', 10), role: 'TENANT_DISPATCHER', tenantId: 'ws-semarang-01', avatar: null, isMfaEnabled: false, status: 'ACTIVE', createdAt: '2024-04-01T08:00:00Z' },
-      { id: 'usr-07', name: 'Auditor Sari', email: 'sari@semarang.go.id', password: bcrypt.hashSync('audit123', 10), role: 'TENANT_AUDITOR', tenantId: 'ws-semarang-01', avatar: null, isMfaEnabled: false, status: 'ACTIVE', createdAt: '2024-04-10T10:00:00Z' },
     ];
 
-    // ── PRDportaltennant: Tenant & Identity Management ───────────────────────
-
-    // Tenant registry (extended from workspaces)
+    // Tenant
     this.tenants = [
       { id: 'ws-semarang-01', name: 'Dishub Kota Semarang', status: 'ACTIVE', region: 'Jawa Tengah', contactEmail: 'admin@semarang.go.id', phone: '+62 24-5555-0100', address: 'Jl. Pemuda 148, Semarang', createdAt: '2024-01-10T00:00:00Z', planTier: 'ENTERPRISE' },
     ];
@@ -76,32 +64,23 @@ class PostgresAdapter {
       { roleId: 'role-patrol', permissions: ['incidents:read', 'incidents:write', 'vehicles:read'] },
     ];
 
-    // Subscriptions
-    this.subscriptions = [
-      { id: 'sub-001', tenantId: 'ws-semarang-01', planTier: 'ENTERPRISE', status: 'ACTIVE', pricePerMonth: 45000000, currency: 'IDR', currentPeriodStart: '2024-08-01T00:00:00Z', currentPeriodEnd: '2024-09-01T00:00:00Z', deviceLimit: 100, features: ['geofence', 'deviation_alerts', 'api_access', 'webhooks', 'ai_reports', 'priority_support'] },
-    ];
+    // Subscriptions — EMPTY
+    this.subscriptions = [];
 
-    // Invoices
-    this.invoices = [
-      { id: 'INV-2024-001', tenantId: 'ws-semarang-01', subscriptionId: 'sub-001', amount: 45000000, currency: 'IDR', status: 'PAID', paymentMethod: 'Virtual Account', issuedAt: '2024-08-01T00:00:00Z', dueAt: '2024-08-15T00:00:00Z', paidAt: '2024-08-05T10:30:00Z', invoiceNumber: 'VGL-2024-08-001', lineItems: [{ description: 'ENTERPRISE Plan - August 2024', quantity: 1, unitPrice: 45000000, total: 45000000 }] },
-    ];
+    // Invoices — EMPTY
+    this.invoices = [];
 
-    // API Keys (portal access keys for programmatic integration)
-    this.apiKeys = [
-      { id: 'key-001', tenantId: 'ws-semarang-01', name: 'Production API Key', keyHash: 'ak_prod_smg_a1b2c3d4e5f6g7h8i9j0', prefix: 'ak_prod_smg_', permissions: ['vehicles:read', 'incidents:read', 'telemetry:read'], status: 'ACTIVE', createdAt: '2024-06-01T00:00:00Z', lastUsedAt: '2024-08-28T14:30:00Z', expiresAt: null },
-      { id: 'key-002', tenantId: 'ws-semarang-01', name: 'Staging Webhook Key', keyHash: 'ak_stg_smg_x1y2z3w4v5u6t7s8r9q0', prefix: 'ak_stg_smg_', permissions: ['webhooks:write'], status: 'ACTIVE', createdAt: '2024-07-15T00:00:00Z', lastUsedAt: null, expiresAt: '2025-07-15T00:00:00Z' },
-    ];
+    // API Keys — EMPTY
+    this.apiKeys = [];
 
-    // Auth audit log (login attempts, password resets, session events)
+    // Auth audit log
     this.authAuditLog = [];
 
-    // Refresh tokens (HTTP-only, 7-day expiry)
+    // Refresh tokens
     this.refreshTokens = [];
 
-    // Pending invitations
-    this.invitations = [
-      { id: 'inv-001', tenantId: 'ws-semarang-01', email: 'newuser@semarang.go.id', role: 'TENANT_DISPATCHER', invitedBy: 'usr-01', status: 'PENDING', createdAt: '2024-08-25T10:00:00Z', expiresAt: '2024-09-01T10:00:00Z' },
-    ];
+    // Pending invitations — EMPTY
+    this.invitations = [];
   }
 
   // ── Authentication Methods ──────────────────────────────────────────────────

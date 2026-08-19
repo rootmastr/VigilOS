@@ -16,11 +16,16 @@ import TeamManagement from './components/portal/TeamManagement';
 import SubscriptionBilling from './components/portal/SubscriptionBilling';
 import SLACompliance from './components/portal/SLACompliance';
 import APIKeys from './components/portal/APIKeys';
+import TenantSettings from './components/portal/TenantSettings';
+import FeatureManagement from './components/portal/FeatureManagement';
+import TenantManagement from './components/portal/TenantManagement';
+import TenantDetail from './components/portal/TenantDetail';
+import ProvisioningWizard from './components/portal/ProvisioningWizard';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useAudioAlarm } from './hooks/useAudioAlarm';
 import { AlertTriangle, Bell } from 'lucide-react';
 
-const PORTAL_PAGES = ['portal-dashboard', 'portal-team', 'portal-billing', 'portal-sla', 'portal-apikeys'];
+const PORTAL_PAGES = ['portal-dashboard', 'portal-team', 'portal-billing', 'portal-sla', 'portal-apikeys', 'portal-settings', 'portal-features', 'portal-tenants', 'portal-tenant-detail'];
 
 export default function App() {
   const [authUser, setAuthUser] = useState(() => {
@@ -36,9 +41,19 @@ export default function App() {
   const [toastMsg, setToastMsg] = useState(null);
   const [toastType, setToastType] = useState('info');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [currentTenant, setCurrentTenant] = useState('transsemarang-01');
+  const [currentTenant, setCurrentTenant] = useState(() => {
+    return localStorage.getItem('vigil_current_tenant') || 'ws-semarang-01';
+  });
+
+  const handleTenantSwitch = useCallback((tenantId) => {
+    setCurrentTenant(tenantId);
+    localStorage.setItem('vigil_current_tenant', tenantId);
+  }, []);
   const [routeDeviationModal, setRouteDeviationModal] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
+  const [showWizard, setShowWizard] = useState(false);
+  const [selectedTenantId, setSelectedTenantId] = useState(null);
+  const [wizardComplete, setWizardComplete] = useState(null);
 
   const { playAlarm } = useAudioAlarm();
 
@@ -171,6 +186,10 @@ export default function App() {
   // Auth handlers
   const handleLogin = useCallback((user, _token) => {
     setAuthUser(user);
+    if (user?.tenantId) {
+      setCurrentTenant(user.tenantId);
+      localStorage.setItem('vigil_current_tenant', user.tenantId);
+    }
   }, []);
 
   const handleLogout = useCallback(() => {
@@ -217,6 +236,36 @@ export default function App() {
         {activePage === 'portal-billing' && canAccessPage(userRole, 'portal-billing') && <SubscriptionBilling user={authUser} />}
         {activePage === 'portal-sla' && canAccessPage(userRole, 'portal-sla') && <SLACompliance user={authUser} />}
         {activePage === 'portal-apikeys' && canAccessPage(userRole, 'portal-apikeys') && <APIKeys user={authUser} />}
+        {activePage === 'portal-settings' && canAccessPage(userRole, 'portal-settings') && <TenantSettings user={authUser} />}
+        {activePage === 'portal-features' && canAccessPage(userRole, 'portal-features') && <FeatureManagement user={authUser} />}
+        {activePage === 'portal-tenants' && canAccessPage(userRole, 'portal-tenants') && !showWizard && !selectedTenantId && (
+          <TenantManagement
+            user={authUser}
+            onSelectTenant={(id) => { setSelectedTenantId(id); setActivePage('portal-tenant-detail'); }}
+            onAddNew={() => setShowWizard(true)}
+            showToast={showToast}
+          />
+        )}
+        {activePage === 'portal-tenant-detail' && selectedTenantId && (
+          <TenantDetail
+            tenantId={selectedTenantId}
+            onBack={() => { setSelectedTenantId(null); setActivePage('portal-tenants'); }}
+            onManageSettings={() => setActivePage('portal-settings')}
+            onManageFeatures={() => setActivePage('portal-features')}
+            showToast={showToast}
+          />
+        )}
+        {showWizard && (
+          <ProvisioningWizard
+            onClose={() => setShowWizard(false)}
+            onComplete={(data) => {
+              setShowWizard(false);
+              showToast?.('Tenant published successfully!');
+              setActivePage('portal-tenants');
+            }}
+            showToast={showToast}
+          />
+        )}
       </PortalLayout>
     );
   }
@@ -229,7 +278,7 @@ export default function App() {
         operatorCount={3}
         connected={connected}
         currentTenant={currentTenant}
-        onTenantSwitch={setCurrentTenant}
+        onTenantSwitch={handleTenantSwitch}
         sidebarCollapsed={sidebarCollapsed}
         user={authUser}
         onLogout={handleLogout}

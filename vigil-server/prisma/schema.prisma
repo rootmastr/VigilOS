@@ -7,149 +7,526 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// TENANT MANAGEMENT (PRD §2.1 — Multi-Tenant Isolation)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model Tenant {
+  id           String           @id @default(uuid())
+  name         String
+  slug         String           @unique
+  status       TenantStatus     @default(ACTIVE)
+  region       String?
+  industry     String?
+  contactEmail String
+  phone        String?
+  address      String?
+  suspendedAt  DateTime?
+  suspendReason String?
+  config       Json             @default("{}")
+  planTier     SubscriptionPlan @default(TRIAL)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  deletedAt    DateTime?
+
+  users           User[]
+  vehicles        Vehicle[]
+  incidents       Incident[]
+  fieldReports    FieldReport[]
+  subscriptions   Subscription[]
+  invoices        Invoice[]
+  apiKeys         APIKey[]
+  auditLogs       AuditLog[]
+  securityEvents  SecurityEvent[]
+  deviceTokens    DeviceToken[]
+  drivers         Driver[]
+  officers        Officer[]
+  roles           Role[]
+  invitations     Invitation[]
+  refreshTokens   RefreshToken[]
+  slaDocuments    SlaDocument[]
+  usageRecords    UsageRecord[]
+  tenantSettings  TenantSetting[]
+  tenantFeatures  TenantFeature[]
+  tenantAuditLogs TenantAuditLog[]
+
+  @@map("tenants")
+}
+
+model TenantSetting {
+  id          String   @id @default(uuid())
+  tenantId    String
+  category    String
+  key         String
+  value       Json
+  dataType    String   @default("string")
+  isSecret    Boolean  @default(false)
+  isReadonly  Boolean  @default(false)
+  description String?
+  validation  Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, category, key])
+  @@index([tenantId, category])
+  @@map("tenant_settings")
+}
+
+model TenantFeature {
+  id        String    @id @default(uuid())
+  tenantId  String
+  feature   String
+  enabled   Boolean   @default(true)
+  config    Json      @default("{}")
+  limit     Json?
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, feature])
+  @@index([tenantId, enabled])
+  @@map("tenant_features")
+}
+
+model TenantAuditLog {
+  id         String   @id @default(uuid())
+  tenantId   String
+  userId     String?
+  action     String
+  category   String?
+  settingKey String?
+  oldValue   Json?
+  newValue   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@map("tenant_audit_logs")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// IDENTITY & RBAC (PRD §2.2 — Enhanced Identity & RBAC)
+// ═══════════════════════════════════════════════════════════════════════════════
+
 model User {
-  id            String    @id @default(uuid())
-  tenantId      String
-  email         String    @unique
-  name          String
-  role          UserRole  @default(OFFICER)
-  status        UserStatus @default(ACTIVE)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
+  id           String     @id @default(uuid())
+  tenantId     String
+  email        String     @unique
+  name         String
+  passwordHash String
+  role         UserRole   @default(PATROL_OFFICER)
+  status       UserStatus @default(ACTIVE)
+  avatar       String?
+  isMfaEnabled Boolean    @default(false)
+  officerId    String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
+
+  tenant              Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  refreshTokens       RefreshToken[]
+  invitationsSent     Invitation[]   @relation("InvitedBy")
+  invitationsReceived Invitation[]   @relation("InvitedUser")
+  auditLogs           AuditLog[]     @relation("AuditLogUser")
+  fieldReports        FieldReport[]  @relation("FieldReportOfficer")
+
+  @@index([tenantId, email])
+  @@index([tenantId, role])
   @@map("users")
 }
 
+model Role {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String
+  description String?
+  isSystem    Boolean  @default(false)
+  permissions Json     @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@map("roles")
+}
+
+model Invitation {
+  id          String           @id @default(uuid())
+  tenantId    String
+  email       String
+  roleId      String?
+  invitedById String
+  token       String           @unique
+  status      InvitationStatus @default(PENDING)
+  expiresAt   DateTime
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  tenant      Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invitedBy   User   @relation("InvitedBy", fields: [invitedById], references: [id])
+  invitedUser User?  @relation("InvitedUser", fields: [roleId], references: [id])
+
+  @@index([tenantId, email])
+  @@map("invitations")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  tenantId  String
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revoked])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FLEET MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════════
+
 model Vehicle {
-  id            String    @id @default(uuid())
-  tenantId      String
-  code          String    @unique
-  name          String
-  type          VehicleType @default(BUS)
-  lat           Float     @default(-6.9666)
-  lng           Float     @default(110.4196)
-  heading       Float     @default(0)
-  speed         Float     @default(0)
-  status        VehicleStatus @default(ACTIVE)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
+  id                   String        @id @default(uuid())
+  tenantId             String
+  code                 String
+  name                 String
+  type                 VehicleType   @default(BUS)
+  lat                  Float?        @default(-6.9666)
+  lng                  Float?        @default(110.4196)
+  heading              Float         @default(0)
+  speed                Float         @default(0)
+  status               VehicleStatus @default(ACTIVE)
+  driver               String?
+  speedLimit           Int           @default(50)
+  heartBeatIntervalSec Int           @default(10)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  deletedAt            DateTime?
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  incidents    Incident[]
+  telemetry    Telemetry[]
+  fieldReports FieldReport[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, status])
   @@map("vehicles")
 }
 
+model Driver {
+  id          String    @id @default(uuid())
+  tenantId    String
+  name        String
+  vehicleId   String?
+  licenseNo   String
+  phone       String?
+  safetyScore Int       @default(90)
+  status      String    @default("normal")
+  trips       Int       @default(0)
+  hoursOnDuty Float     @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@map("drivers")
+}
+
+model Officer {
+  id          String    @id @default(uuid())
+  tenantId    String
+  name        String
+  rank        String?
+  unit        String?
+  phone       String?
+  dutyStatus  String    @default("offline")
+  lastUpdated DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, dutyStatus])
+  @@map("officers")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INCIDENTS & FIELD REPORTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
 model Incident {
-  id            String    @id @default(uuid())
-  tenantId      String
-  vehicleId     String
-  officerId     String
-  type          IncidentType
-  severity      IncidentSeverity @default(MEDIUM)
-  lat           Float     @default(-6.9666)
-  lng           Float     @default(110.4196)
-  description   String?
-  photos        String[]
-  videos        String[]
-  voiceNote     String?
-  status        IncidentStatus @default(OPEN)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
+  id             String           @id @default(uuid())
+  tenantId       String
+  vehicleId      String
+  officerId      String?
+  type           IncidentType
+  severity       IncidentSeverity @default(MEDIUM)
+  lat            Float            @default(-6.9666)
+  lng            Float            @default(110.4196)
+  description    String?
+  photos         String[]
+  videos         String[]
+  voiceNote      String?
+  status         IncidentStatus   @default(OPEN)
+  acknowledgedBy String?
+  acknowledgedAt DateTime?
+  resolvedAt     DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  deletedAt      DateTime?
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
   @@map("incidents")
 }
 
 model FieldReport {
-  id            String    @id @default(uuid())
-  tenantId      String
-  officerId     String
-  vehicleId     String?
-  type          ReportType
-  lat           Float     @default(-6.9666)
-  lng           Float     @default(110.4196)
-  description   String
-  photos        String[]
-  audio         String?
-  status        ReportStatus @default(DRAFT)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
+  id          String       @id @default(uuid())
+  tenantId    String
+  officerId   String
+  vehicleId   String?
+  type        ReportType
+  lat         Float        @default(-6.9666)
+  lng         Float        @default(110.4196)
+  description String
+  photos      String[]
+  audio       String?
+  status      ReportStatus @default(DRAFT)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  officer User     @relation("FieldReportOfficer", fields: [officerId], references: [id])
+  vehicle Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])
   @@map("field_reports")
 }
 
 model Telemetry {
-  id            String    @id @default(uuid())
-  vehicleId     String
-  lat           Float
-  lng           Float
-  speed         Float
-  heading       Float
-  timestamp     DateTime  @default(now())
-  
-  @@map("telemetry")
+  id        String   @id @default(uuid())
+  vehicleId String
+  lat       Float
+  lng       Float
+  speed     Float
+  heading   Float
+  timestamp DateTime @default(now())
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id])
+
   @@index([vehicleId, timestamp])
+  @@map("telemetry")
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// BILLING & SUBSCRIPTION (PRD §3.3 — Billing & Subscription)
+// ═══════════════════════════════════════════════════════════════════════════════
+
 model Subscription {
-  id            String    @id @default(uuid())
-  tenantId      String    @unique
-  plan          SubscriptionPlan @default(TRIAL)
-  status        SubscriptionStatus @default(PENDING)
-  startDate     DateTime
-  endDate       DateTime?
-  vehicleCount  Int       @default(0)
-  officerCount  Int       @default(0)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
+  id                 String             @id @default(uuid())
+  tenantId           String
+  plan               SubscriptionPlan   @default(TRIAL)
+  status             SubscriptionStatus @default(PENDING)
+  pricePerMonth      Decimal            @default(0)
+  currency           String             @default("IDR")
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime?
+  deviceLimit        Int                @default(10)
+  features           String[]
+  vehicleCount       Int                @default(0)
+  officerCount       Int                @default(0)
+  trialEnd           DateTime?
+  cancelledAt        DateTime?
+  cancelReason       String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
+
   @@map("subscriptions")
 }
 
 model Invoice {
-  id            String    @id @default(uuid())
-  tenantId      String
+  id             String        @id @default(uuid())
+  tenantId       String
   subscriptionId String
-  amount        Decimal
-  status        InvoiceStatus @default(PENDING)
-  dueDate       DateTime
-  paidDate      DateTime?
-  createdAt     DateTime  @default(now())
-  
+  amount         Decimal
+  currency       String        @default("IDR")
+  status         InvoiceStatus @default(PENDING)
+  paymentMethod  String?
+  invoiceNumber  String        @unique
+  issuedAt       DateTime      @default(now())
+  dueAt          DateTime
+  paidAt         DateTime?
+  lineItems      Json          @default("[]")
+  createdAt      DateTime      @default(now())
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subscription Subscription @relation(fields: [subscriptionId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([tenantId, issuedAt])
   @@map("invoices")
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// API MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════════
+
 model APIKey {
-  id            String    @id @default(uuid())
-  tenantId      String
-  keyHash       String    @unique
-  name          String
-  scope         String[]
-  expiresAt     DateTime?
-  lastUsedAt    DateTime?
-  createdAt     DateTime  @default(now())
-  
+  id          String       @id @default(uuid())
+  tenantId    String
+  keyHash     String       @unique
+  prefix      String
+  name        String
+  permissions String[]
+  status      APIKeyStatus @default(ACTIVE)
+  expiresAt   DateTime?
+  lastUsedAt  DateTime?
+  createdAt   DateTime     @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
   @@map("api_keys")
 }
 
-model AuditLog {
-  id            String    @id @default(uuid())
-  tenantId      String
-  userId        String
-  action        String
-  resource      String
-  resourceId    String?
-  details       Json?
-  ipAddress     String?
-  createdAt     DateTime  @default(now())
-  
-  @@map("audit_logs")
-  @@index([tenantId, createdAt])
-  @@index([userId, createdAt])
+model DeviceToken {
+  id          String            @id @default(uuid())
+  tenantId    String
+  deviceId    String
+  tokenHash   String            @unique
+  vehicleId   String?
+  status      DeviceTokenStatus @default(ACTIVE)
+  permissions String[]
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  lastUsedAt  DateTime?
+  createdAt   DateTime          @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, deviceId])
+  @@index([tokenHash])
+  @@map("device_tokens")
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUDIT & COMPLIANCE (PRD §3.4 — Partitioned Tables)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  tenantId   String
+  userId     String?
+  action     String
+  resource   String?
+  resourceId String?
+  details    Json     @default("{}")
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?  @relation("AuditLogUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}
+
+model SecurityEvent {
+  id        String   @id @default(uuid())
+  tenantId  String
+  eventType String
+  deviceId  String?
+  ipAddress String?
+  details   Json     @default("{}")
+  timestamp DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, timestamp])
+  @@index([eventType, timestamp])
+  @@map("security_events")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SLA & DOCUMENTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model SlaDocument {
+  id        String            @id @default(uuid())
+  tenantId  String
+  title     String
+  content   String
+  version   Int               @default(1)
+  status    SlaDocumentStatus @default(DRAFT)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@map("sla_documents")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// USAGE RECORDS (PRD §3.3 — Partitioned by period_start)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model UsageRecord {
+  id           String   @id @default(uuid())
+  tenantId     String
+  periodStart  DateTime
+  periodEnd    DateTime
+  deviceCount  Int      @default(0)
+  apiCalls     BigInt   @default(0)
+  storageBytes BigInt   @default(0)
+  activeUsers  Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, periodStart])
+  @@map("usage_records")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ENUMS
+// ═══════════════════════════════════════════════════════════════════════════════
+
 enum UserRole {
-  ADMIN
-  DISPATCHER
-  OFFICER
-  VIEWER
+  SUPER_ADMIN
+  TENANT_ADMIN
+  TENANT_FINANCE
+  TENANT_DISPATCHER
+  TENANT_AUDITOR
+  COMMAND_CENTER_OPERATOR
+  PATROL_OFFICER
+  PUBLIC_USER
 }
 
 enum UserStatus {
@@ -159,12 +536,20 @@ enum UserStatus {
   SUSPENDED
 }
 
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+  PENDING
+}
+
 enum VehicleType {
   BUS
   MINIBUS
   MICROBUS
   SHUTTLE
   PATROL
+  TRUCK
   OTHER
 }
 
@@ -197,6 +582,7 @@ enum IncidentSeverity {
 enum IncidentStatus {
   OPEN
   INVESTIGATING
+  ACKNOWLEDGED
   ESCALATED
   RESOLVED
   CLOSED
@@ -229,9 +615,12 @@ enum SubscriptionPlan {
 enum SubscriptionStatus {
   PENDING
   ACTIVE
+  TRIAL
   SUSPENDED
   CANCELLED
   EXPIRED
+  PENDING_UPGRADE
+  PENDING_DOWNGRADE
 }
 
 enum InvoiceStatus {
@@ -239,4 +628,29 @@ enum InvoiceStatus {
   PAID
   OVERDUE
   CANCELLED
+}
+
+enum APIKeyStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum DeviceTokenStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+enum SlaDocumentStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
 }

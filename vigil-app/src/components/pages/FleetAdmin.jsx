@@ -79,7 +79,7 @@ export default function FleetAdmin({
   const [vId, setVId] = useState('');
   const [vCode, setVCode] = useState('');
   const [vName, setVName] = useState('');
-  const [vType, setVType] = useState('City Bus');
+  const [vType, setVType] = useState('BUS');
   const [vDriver, setVDriver] = useState('');
   const [vSpeedLimit, setVSpeedLimit] = useState('50');
 
@@ -168,7 +168,7 @@ export default function FleetAdmin({
   const handleAddDriverSubmit = async (e) => {
     e.preventDefault();
     if (!dName) return;
-    const createdId = `DRV-${100 + drivers.length + 1}`;
+    const createdId = `D${String(drivers.length + 1).padStart(3, '0')}`;
     await onAddDriver({
       id: createdId,
       name: dName,
@@ -609,11 +609,13 @@ export default function FleetAdmin({
                 <div>
                   <label style={labelStyle}>Vehicle Type</label>
                   <select style={inputStyle} value={vType} onChange={e => setVType(e.target.value)}>
-                    <option value="Articulated Bus">Articulated Bus</option>
-                    <option value="City Bus">City Bus</option>
-                    <option value="Feeder Bus">Feeder Bus</option>
-                    <option value="Express Bus">Express Bus</option>
-                    <option value="Patrol Car">Patrol Car</option>
+                    <option value="BUS">City Bus</option>
+                    <option value="MINIBUS">Minibus</option>
+                    <option value="MICROBUS">Microbus</option>
+                    <option value="SHUTTLE">Shuttle</option>
+                    <option value="PATROL">Patrol</option>
+                    <option value="TRUCK">Truck</option>
+                    <option value="OTHER">Other</option>
                   </select>
                 </div>
                 <div>

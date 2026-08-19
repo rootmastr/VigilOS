@@ -1,31 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
-import { INITIAL_VEHICLES } from '../data/mockData';
-import { LOGISTIK_A_VEHICLES, LOGISTIK_A_DRIVERS, LOGISTIK_A_INCIDENTS } from '../data/mockDataLogistik';
+import api from '../services/api';
 
 const BACKEND_URL = '';
 
 export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsemarang-01') {
-  // Load initial data based on tenant
-  const getInitialData = useCallback(() => {
-    if (tenantId === 'logistik-a-01') {
-      return {
-        vehicles: LOGISTIK_A_VEHICLES,
-        drivers: LOGISTIK_A_DRIVERS,
-        incidents: LOGISTIK_A_INCIDENTS,
-      };
-    }
-    // Default: TransSemarang
-    return {
-      vehicles: INITIAL_VEHICLES,
-      drivers: [],
-      incidents: [],
-    };
-  }, [tenantId]);
-
-  const initialData = getInitialData();
-  const [vehicles, setVehicles] = useState(initialData.vehicles);
-  const [drivers, setDrivers] = useState(initialData.drivers);
+  const [vehicles, setVehicles] = useState([]);
+  const [drivers, setDrivers] = useState([]);
   const [officers, setOfficers] = useState([]);
   const [connected, setConnected] = useState(false);
   const [incidents, setIncidents] = useState([]);
@@ -36,13 +17,25 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
   const emergencyCallbackRef = useRef(onEmergency);
   const routeDeviationCallbackRef = useRef(onRouteDeviation);
 
-  // Reset data when tenant changes
+  // Reset data when tenant changes — fetch fresh from API
   useEffect(() => {
-    const data = getInitialData();
-    setVehicles(data.vehicles);
-    setDrivers(data.drivers);
-    setIncidents(data.incidents);
-  }, [tenantId, getInitialData]);
+    let active = true;
+    async function fetchInitial() {
+      try {
+        const [vehRes, drvRes] = await Promise.all([
+          api.get('/api/v1/fleet/vehicles'),
+          api.get('/api/v1/fleet/drivers'),
+        ]);
+        if (!active) return;
+        if (vehRes.data.success) setVehicles(vehRes.data.data);
+        if (drvRes.data.success) setDrivers(drvRes.data.data);
+      } catch (e) {
+        console.warn('Failed to fetch initial fleet data:', e);
+      }
+    }
+    fetchInitial();
+    return () => { active = false; };
+  }, [tenantId]);
 
   useEffect(() => {
     emergencyCallbackRef.current = onEmergency;
@@ -53,6 +46,7 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
   }, [onRouteDeviation]);
 
   useEffect(() => {
+    let active = true;
     const socket = io(BACKEND_URL, {
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
@@ -62,23 +56,26 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
     socketRef.current = socket;
 
     socket.on('connect', () => {
+      if (!active) return;
       console.log('[WebSocket Client] Connected to VigilOS Backend Server');
       setConnected(true);
     });
 
     socket.on('disconnect', () => {
+      if (!active) return;
       console.log('[WebSocket Client] Disconnected from VigilOS Backend Server');
       setConnected(false);
     });
 
     socket.on('initial_state', (data) => {
-      if (data.vehicles && data.vehicles.length > 0) {
+      if (!active) return;
+      if (data.vehicles) {
         setVehicles(data.vehicles);
       }
-      if (data.drivers && data.drivers.length > 0) {
+      if (data.drivers) {
         setDrivers(data.drivers);
       }
-      if (data.officers && data.officers.length > 0) {
+      if (data.officers) {
         setOfficers(data.officers);
       }
       if (data.incidents) {
@@ -96,16 +93,19 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
     });
 
     socket.on('officer_status_changed', (updatedOfficer) => {
+      if (!active) return;
       setOfficers(prev => prev.map(o => o.id === updatedOfficer.id ? updatedOfficer : o));
     });
 
     socket.on('telemetry_update', (update) => {
+      if (!active) return;
       setVehicles(prev =>
         prev.map(v => (v.id === update.vehicleId ? { ...v, ...update } : v))
       );
     });
 
     socket.on('emergency_alert', (data) => {
+      if (!active) return;
       const { incident, vehicle } = data;
       setVehicles(prev =>
         prev.map(v => (v.id === vehicle.id ? { ...v, status: 'emergency' } : v))
@@ -118,10 +118,12 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
     });
 
     socket.on('incident_acknowledged', (incident) => {
+      if (!active) return;
       setIncidents(prev => prev.map(i => i.id === incident.id ? incident : i));
     });
 
     socket.on('incident_resolved', (incident) => {
+      if (!active) return;
       setIncidents(prev => prev.map(i => i.id === incident.id ? incident : i));
       setVehicles(prev =>
         prev.map(v => (v.id === incident.vehicleId ? { ...v, status: 'normal' } : v))
@@ -130,6 +132,7 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
 
     // Route Deviation Events — 3-state workflow
     socket.on('route_deviation_event', (event) => {
+      if (!active) return;
       const { vehicleId, severity, deviationMeters, route, lat, lng } = event;
 
       setRouteDeviations(prev => {
@@ -180,6 +183,7 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
     });
 
     socket.on('route_deviation_resolved', (data) => {
+      if (!active) return;
       const { vehicleId, resolutionReason } = data;
       setRouteDeviations(prev =>
         prev.map(d => d.vehicleId === vehicleId ? { ...d, resolved: true, resolutionReason } : d)
@@ -190,30 +194,37 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
     });
 
     socket.on('vehicle_added', (newVehicle) => {
+      if (!active) return;
       setVehicles(prev => [...prev.filter(v => v.id !== newVehicle.id), newVehicle]);
     });
 
     socket.on('vehicle_updated', (updated) => {
+      if (!active) return;
       setVehicles(prev => prev.map(v => v.id === updated.id ? updated : v));
     });
 
     socket.on('vehicle_deleted', ({ id }) => {
+      if (!active) return;
       setVehicles(prev => prev.filter(v => v.id !== id));
     });
 
     socket.on('driver_added', (newDriver) => {
+      if (!active) return;
       setDrivers(prev => [...prev.filter(d => d.id !== newDriver.id), newDriver]);
     });
 
     socket.on('driver_updated', (updated) => {
+      if (!active) return;
       setDrivers(prev => prev.map(d => d.id === updated.id ? updated : d));
     });
 
     socket.on('driver_deleted', ({ id }) => {
+      if (!active) return;
       setDrivers(prev => prev.filter(d => d.id !== id));
     });
 
     socket.on('token_updated', ({ token }) => {
+      if (!active) return;
       setDeviceTokens(prev => {
         const others = prev.filter(t => t.id !== token.id);
         return [token, ...others];
@@ -221,10 +232,12 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
     });
 
     socket.on('security_event', (event) => {
+      if (!active) return;
       setSecurityEvents(prev => [event, ...prev.filter(e => e.id !== event.id)].slice(0, 200));
     });
 
     return () => {
+      active = false;
       socket.disconnect();
     };
   }, []);
@@ -292,13 +305,13 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
     };
 
     setRouteDeviations(prev => {
-      const filtered = prev.filter(d => d.vehicleId !== targetId);
+      const filtered = prev.filter(d => d.vehicleId !== vehicleId);
       return [deviation, ...filtered];
     });
 
     setVehicles(prev =>
       prev.map(v => {
-        if (v.id === targetId) {
+        if (v.id === vehicleId) {
           const newStatus = severity === 'critical' ? 'emergency' : 'warning';
           return { ...v, status: newStatus };
         }
@@ -307,35 +320,44 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
     );
 
     if (routeDeviationCallbackRef.current) {
-      const vehicle = INITIAL_VEHICLES.find(v => v.id === targetId) || {};
+      const vehicle = INITIAL_VEHICLES.find(v => v.id === vehicleId) || {};
       routeDeviationCallbackRef.current({
-        vehicleId: targetId,
+        vehicleId: vehicleId,
         severity,
         deviationMeters: deviation.deviationMeters,
         route: deviation.route,
         lat: deviation.lat,
         lng: deviation.lng,
-        vehicle: { ...vehicle, id: targetId },
+        vehicle: { ...vehicle, id: vehicleId },
       });
     }
   }, []);
 
+  const refreshFleet = async () => {
+    try {
+      const [vehRes, drvRes] = await Promise.all([
+        api.get('/api/v1/fleet/vehicles'),
+        api.get('/api/v1/fleet/drivers'),
+      ]);
+      if (vehRes.data.success) setVehicles(vehRes.data.data);
+      if (drvRes.data.success) setDrivers(drvRes.data.data);
+    } catch (e) {
+      console.warn('Failed to refresh fleet:', e);
+    }
+  };
+
   const addVehicle = async (vehicleData) => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/v1/vehicles`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(vehicleData)
-      });
-      const data = await res.json();
+      const { data } = await api.post('/api/v1/fleet/vehicles', vehicleData);
       if (data.success) {
-        setVehicles(prev => [...prev.filter(v => v.id !== data.data.id), data.data]);
+        await refreshFleet();
         return data.data;
       }
+      throw new Error(data.error || 'Failed to add vehicle');
     } catch (err) {
       console.warn('API error, adding locally:', err);
       const fallback = {
-        id: vehicleData.id || `VEH-${Date.now().toString().slice(-3)}`,
+        id: vehicleData.code || `VEH-${Date.now().toString().slice(-3)}`,
         code: vehicleData.code || 'NEW-001',
         name: vehicleData.name || 'New Vehicle',
         type: vehicleData.type || 'Vehicle',
@@ -343,7 +365,7 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
         speedLimit: Number(vehicleData.speedLimit) || 50,
         speed: 0,
         passengers: 0,
-        status: 'normal',
+        status: 'offline',
         lat: 0,
         lng: 0
       };
@@ -354,16 +376,12 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
 
   const addDriver = async (driverData) => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/v1/drivers`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(driverData)
-      });
-      const data = await res.json();
+      const { data } = await api.post('/api/v1/fleet/drivers', driverData);
       if (data.success) {
-        setDrivers(prev => [...prev.filter(d => d.id !== data.data.id), data.data]);
+        await refreshFleet();
         return data.data;
       }
+      throw new Error(data.error || 'Failed to add driver');
     } catch (err) {
       console.warn('API error, adding locally:', err);
       const fallback = {
@@ -384,25 +402,20 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
 
   const deleteVehicle = async (id) => {
     try {
-      await fetch(`${BACKEND_URL}/api/v1/vehicles/${id}`, { method: 'DELETE' });
+      await api.delete(`/api/v1/fleet/vehicles/${id}`);
     } catch (e) {}
-    setVehicles(prev => prev.filter(v => v.id !== id));
+    await refreshFleet();
   };
 
   const deleteDriver = async (id) => {
     try {
-      await fetch(`${BACKEND_URL}/api/v1/drivers/${id}`, { method: 'DELETE' });
+      await api.delete(`/api/v1/fleet/drivers/${id}`);
     } catch (e) {}
-    setDrivers(prev => prev.filter(d => d.id !== id));
+    await refreshFleet();
   };
 
   const generateToken = async (deviceId, expiryDays = null) => {
-    const res = await fetch(`${BACKEND_URL}/api/v1/tokens/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ deviceId, expiryDays })
-    });
-    const data = await res.json();
+    const { data } = await api.post('/api/v1/tokens/generate', { deviceId, expiryDays });
     if (data.success) {
       setDeviceTokens(prev => [data.data, ...prev.filter(t => t.id !== data.data.id)]);
       return data.data;
@@ -411,11 +424,7 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
   };
 
   const revokeToken = async (tokenId) => {
-    const res = await fetch(`${BACKEND_URL}/api/v1/tokens/${encodeURIComponent(tokenId)}/revoke`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    const data = await res.json();
+    const { data } = await api.post(`/api/v1/tokens/${encodeURIComponent(tokenId)}/revoke`);
     if (data.success) {
       setDeviceTokens(prev => prev.map(t => t.id === tokenId ? data.data : t));
       return data.data;
@@ -424,12 +433,7 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
   };
 
   const rotateToken = async (deviceId) => {
-    const res = await fetch(`${BACKEND_URL}/api/v1/tokens/${encodeURIComponent(deviceId)}/rotate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ deviceId })
-    });
-    const data = await res.json();
+    const { data } = await api.post(`/api/v1/tokens/${encodeURIComponent(deviceId)}/rotate`, { deviceId });
     if (data.success) {
       setDeviceTokens(prev => [data.data, ...prev.filter(t => t.id !== data.data.id)]);
       return data.data;
@@ -439,8 +443,7 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
 
   const refreshSecurityEvents = async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/v1/tokens/security-events`);
-      const data = await res.json();
+      const { data } = await api.get('/api/v1/tokens/security-events');
       if (data.success) setSecurityEvents(data.data);
       return data.data;
     } catch (error) {

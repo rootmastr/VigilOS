@@ -1021,6 +1021,11 @@ function analyzeSuspiciousPatterns(req) {
 export function ddosProtection(req, res, next) {
   const ip = req.ip || req.socket?.remoteAddress || 'unknown';
 
+  // Skip DDoS protection for localhost in development
+  if (process.env.NODE_ENV !== 'production' && (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1')) {
+    return next();
+  }
+
   // Check if IP is blocked
   if (isIPBlocked(ip)) {
     logSecurityAudit({

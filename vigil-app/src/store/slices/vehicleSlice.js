@@ -6,7 +6,7 @@ export const fetchVehicles = createAsyncThunk(
   'vehicles/fetchVehicles',
   async (params, { rejectWithValue }) => {
     try {
-      const response = await api.get('/api/v1/vehicles', { params });
+      const response = await api.get('/api/v1/fleet/vehicles', { params });
       return response.data.data.vehicles;
     } catch (error) {
       return rejectWithValue(error.response?.data?.error || 'Failed to fetch vehicles');
@@ -18,7 +18,7 @@ export const updateVehicleStatus = createAsyncThunk(
   'vehicles/updateVehicleStatus',
   async ({ vehicleId, status }, { rejectWithValue }) => {
     try {
-      const response = await api.patch(`/api/v1/vehicles/${vehicleId}`, { status });
+      const response = await api.patch(`/api/v1/fleet/vehicles/${vehicleId}`, { status });
       return response.data.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.error || 'Failed to update vehicle');
@@ -30,7 +30,7 @@ export const updateVehicleLocation = createAsyncThunk(
   'vehicles/updateVehicleLocation',
   async ({ vehicleId, lat, lng, heading, speed }, { rejectWithValue }) => {
     try {
-      const response = await api.put(`/api/v1/vehicles/${vehicleId}/location`, {
+      const response = await api.put(`/api/v1/fleet/vehicles/${vehicleId}/location`, {
         lat, lng, heading, speed
       });
       return response.data.data;
