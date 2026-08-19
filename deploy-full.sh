@@ -66,7 +66,7 @@ echo ""
 # ═══════════════════════════════════════════════════════════════
 echo -e "${YELLOW}[STEP 2] Testing SSH connection to server...${NC}"
 
-if ssh -p "$SSH_PORT" -o ConnectTimeout=10 -o BatchMode=yes "${SSH_USER}@${SERVER_IP}" "echo 'SSH connection successful'" 2>/dev/null; then
+if ssh -p "$SSH_PORT" -o ConnectTimeout=10 -o BatchMode=yes -o StrictHostKeyChecking=accept-new "${SSH_USER}@${SERVER_IP}" "echo 'SSH connection successful'" 2>/dev/null; then
     echo -e "${GREEN}✓ SSH connection successful${NC}"
 else
     echo -e "${RED}✗ SSH connection failed${NC}"
@@ -138,11 +138,11 @@ echo ""
 
 # Copy deploy script to server
 echo -e "${YELLOW}Copying deploy script to server...${NC}"
-scp -P "$SSH_PORT" deploy-server.sh "${SSH_USER}@${SERVER_IP}:/tmp/"
+scp -P "$SSH_PORT" -o StrictHostKeyChecking=accept-new deploy-server.sh "${SSH_USER}@${SERVER_IP}:/tmp/"
 
 # Execute deploy script on server
 echo -e "${YELLOW}Executing deploy script on server...${NC}"
-ssh -p "$SSH_PORT" "${SSH_USER}@${SERVER_IP}" "chmod +x /tmp/deploy-server.sh && sudo /tmp/deploy-server.sh"
+ssh -t -p "$SSH_PORT" "${SSH_USER}@${SERVER_IP}" "chmod +x /tmp/deploy-server.sh && sudo /tmp/deploy-server.sh"
 
 echo ""
 echo -e "${GREEN}✓ Deployment complete!${NC}"
