@@ -168,19 +168,4 @@ CREATE INDEX "audit_logs_tenantId_createdAt_idx" ON "audit_logs"("tenantId", "cr
 -- CreateIndex
 CREATE INDEX "audit_logs_userId_createdAt_idx" ON "audit_logs"("userId", "createdAt");
 
--- SeedData
-INSERT INTO "users" ("id", "tenantId", "email", "name", "role", "status") VALUES
-('usr-admin-001', 'ws-semarang-01', 'admin@semarang.go.id', 'Administrator', 'ADMIN', 'ACTIVE'),
-('usr-dispatcher-001', 'ws-semarang-01', 'dispatcher@semarang.go.id', 'Dispatcher', 'DISPATCHER', 'ACTIVE'),
-('usr-officer-001', 'ws-semarang-01', 'budi@semarang.go.id', 'Budi Hartono', 'OFFICER', 'ACTIVE'),
-('usr-officer-002', 'ws-semarang-01', 'sari@semarang.go.id', 'Sari Dewi', 'OFFICER', 'ACTIVE');
-
-INSERT INTO "vehicles" ("id", "tenantId", "code", "name", "type", "lat", "lng") VALUES
-('veh-bus-101', 'ws-semarang-01', 'TS-101', 'Koridor 1 - Terboyo Express', 'BUS', -6.9567, 110.4383),
-('veh-bus-102', 'ws-semarang-01', 'TS-102', 'Koridor 1 - Simpang Lima', 'BUS', -6.9900, 110.4200),
-('veh-bus-103', 'ws-semarang-01', 'TS-103', 'Koridor 2 - Pandanaran Feeder', 'BUS', -6.9750, 110.4220),
-('veh-bus-104', 'ws-semarang-01', 'TS-104', 'Koridor 3 - Kota Lama Express', 'BUS', -6.9650, 110.4300),
-('veh-patrol-01', 'ws-semarang-01', 'TS-P1', 'Patroli Kota Semarang', 'PATROL', -6.9700, 110.4250);
-
-INSERT INTO "subscriptions" ("id", "tenantId", "plan", "status", "startDate", "vehicleCount", "officerCount") VALUES
-('sub-semarang-01', 'ws-semarang-01', 'ENTERPRISE', 'ACTIVE', '2024-01-01T00:00:00.000Z', 5, 4);
+-- SeedData (handled by prisma/seed.js)
