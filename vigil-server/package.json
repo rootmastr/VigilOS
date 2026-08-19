@@ -39,7 +39,7 @@
     "ws": "^8.17.0"
   },
   "devDependencies": {
-    "@testing-library/jest-dom": "^5.16.5",
+    "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^14.0.0",
     "eslint": "^8.50.0",
     "eslint-plugin-jest": "^27.4.0",
