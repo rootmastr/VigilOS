@@ -46,7 +46,9 @@ echo -e "${YELLOW}[STEP 1] Server Information${NC}"
 echo -e "${CYAN}Please provide your Ubuntu server details:${NC}"
 echo ""
 
-read -p "Server IP address: " SERVER_IP
+read -p "Server IP address: " SERVER_INPUT
+# Strip protocol prefix if provided
+SERVER_IP=$(echo "$SERVER_INPUT" | sed -E 's|^https?://||; s|/.*||; s|:.*||')
 read -p "Server SSH port [22]: " SSH_PORT
 SSH_PORT=${SSH_PORT:-22}
 read -p "Server SSH username [root]: " SSH_USER
