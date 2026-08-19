@@ -491,10 +491,8 @@ CREATE TABLE "audit_logs" (
   "details" JSONB NOT NULL DEFAULT '{}',
   "ipAddress" TEXT,
   "userAgent" TEXT,
-  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-  CONSTRAINT "audit_logs_pkey" PRIMARY KEY ("id", "createdAt")
-);
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+) PARTITION BY RANGE ("createdAt");
 
 CREATE INDEX "audit_logs_tenantId_createdAt_idx" ON "audit_logs"("tenantId", "createdAt");
 CREATE INDEX "audit_logs_userId_createdAt_idx" ON "audit_logs"("userId", "createdAt");
@@ -550,10 +548,8 @@ CREATE TABLE "usage_records" (
   "apiCalls" BIGINT NOT NULL DEFAULT 0,
   "storageBytes" BIGINT NOT NULL DEFAULT 0,
   "activeUsers" INTEGER NOT NULL DEFAULT 0,
-  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-  CONSTRAINT "usage_records_pkey" PRIMARY KEY ("id", "periodStart")
-);
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+) PARTITION BY RANGE ("periodStart");
 
 CREATE INDEX "usage_records_tenantId_periodStart_idx" ON "usage_records"("tenantId", "periodStart");
 
