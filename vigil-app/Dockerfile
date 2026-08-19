@@ -18,7 +18,8 @@ RUN npm run build
 # Production stage
 FROM nginx:alpine AS production
 
-# Copy custom nginx config
+# Remove default config and copy custom nginx config
+RUN rm -f /etc/nginx/conf.d/default.conf
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy built application
