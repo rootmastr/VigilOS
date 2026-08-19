@@ -107,6 +107,8 @@ CREATE TABLE "tenants" (
   "contactEmail" TEXT NOT NULL,
   "phone" TEXT,
   "address" TEXT,
+  "suspendedAt" TIMESTAMP(3),
+  "suspendReason" TEXT,
   "config" JSONB NOT NULL DEFAULT '{}',
   "planTier" "SubscriptionPlan" NOT NULL DEFAULT 'TRIAL',
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
