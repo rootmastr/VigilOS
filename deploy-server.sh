@@ -83,27 +83,27 @@ DB_HOST=postgres
 DB_PORT=5432
 DB_NAME=vigil_prod
 DB_USER=vigil_admin
-DB_PASSWORD=$(openssl rand -base64 32)
+DB_PASSWORD=$(openssl rand -hex 32)
 
 # Redis Configuration
 REDIS_URL=redis://redis:6379
 
 # InfluxDB Configuration
 INFLUX_URL=http://influxdb:8086
-INFLUX_TOKEN=$(openssl rand -base64 32)
-INFLUX_PASSWORD=$(openssl rand -base64 16)
+INFLUX_TOKEN=$(openssl rand -hex 32)
+INFLUX_PASSWORD=$(openssl rand -hex 16)
 
 # JWT Configuration
-JWT_SECRET=$(openssl rand -base64 64)
+JWT_SECRET=$(openssl rand -hex 64)
 JWT_EXPIRY=24h
 
 # Encryption
-ENCRYPTION_KEY=$(openssl rand -base64 32)
+ENCRYPTION_KEY=$(openssl rand -hex 32)
 
 # MQTT Configuration
 MQTT_BROKER=mqtt://mosquitto:1883
 MQTT_USERNAME=vigil_server
-MQTT_PASSWORD=$(openssl rand -base64 16)
+MQTT_PASSWORD=$(openssl rand -hex 16)
 
 # Server Configuration
 PORT=3000
