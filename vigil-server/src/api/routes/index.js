@@ -21,6 +21,7 @@ import incidentRoutes from './incidents.js';
 import portalRoutes from './portal.js';
 import systemRoutes from './system.js';
 import tokenRoutes from './tokens.js';
+import telemetryRoutes, { setMqttBroker as setTelemetryMqttBroker } from './telemetry.js';
 
 const router = express.Router();
 
@@ -89,6 +90,9 @@ router.use('/portal', ...protectedMiddleware, portalRoutes);
 router.use('/tokens', ...protectedMiddleware, tokenRoutes);
 router.use('/system', systemRoutes);
 
+// Telemetry & Emergency routes (IoT device auth via X-Device-Token)
+router.use(telemetryRoutes);
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // LEGACY ROUTES (Backward compatibility - will be deprecated)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -133,5 +137,8 @@ router.put('/vehicles/:id/location', (req, res, next) => {
   req.url = `/fleet/vehicles/${req.params.id}/location`;
   router.handle(req, res, next);
 });
+
+// Export setMqttBroker for telemetry routes
+export { setTelemetryMqttBroker as setMqttBroker };
 
 export default router;

@@ -894,10 +894,21 @@ Thank you for your subscription!
   });
 
   // POST /api/v1/emergency/trigger
-  router.post('/emergency/trigger', (req, res) => {
+  router.post('/emergency/trigger', (req, res, next) => {
+    validateDeviceToken(req, res, next);
+  }, (req, res) => {
     const { vehicleId, details } = req.body;
-    const targetId = vehicleId || 'BUS-101';
-    
+    const targetId = vehicleId || req.authenticatedDevice.deviceId;
+
+    // Verify token is bound to the vehicle being emergency-triggered
+    if (targetId !== req.authenticatedDevice.deviceId) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden',
+        message: `Token bound to ${req.authenticatedDevice.deviceId} cannot trigger emergency for ${targetId}.`
+      });
+    }
+
     if (!mqttBroker) {
       return res.status(500).json({ success: false, error: 'MQTT Broker ingestion not ready' });
     }

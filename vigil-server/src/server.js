@@ -16,6 +16,7 @@ import { MQTTBrokerSimulator } from './mqtt/brokerSimulator.js';
 import apiRouter from './api/routes/index.js';
 import { setMqttBroker as setFleetMqttBroker } from './api/routes/fleet.js';
 import { setMqttBroker as setTokenMqttBroker } from './api/routes/tokens.js';
+import { setMqttBroker as setTelemetryMqttBroker } from './api/routes/telemetry.js';
 import { redisClient } from './cache/redisClient.js';
 import { cacheAllActiveTokens } from './cache/cacheService.js';
 import { securityHeaders, sanitizeRequest, ddosProtection, auditLogger } from './security/securityMiddleware.js';
@@ -107,6 +108,7 @@ const mqttBroker = new MQTTBrokerSimulator(speedEvaluator, socketBroadcast);
 // Inject broker into route modules
 setFleetMqttBroker(mqttBroker);
 setTokenMqttBroker(mqttBroker);
+setTelemetryMqttBroker(mqttBroker);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // API ROUTES
@@ -125,14 +127,15 @@ io.on('connection', (socket) => {
   // Send initial state snapshot on connection — read from Prisma (persistent)
   const emitInitialState = async () => {
     try {
-      const [vehicles, drivers, officers, deviceTokens, securityEvents, incidents] = await Promise.all([
+      const [vehicles, drivers, officers, securityEvents, incidents] = await Promise.all([
         db.listVehicles({ take: 200 }),
         db.listDrivers({ take: 200 }),
         db.listOfficers({ take: 200 }),
-        db.listDeviceTokens({ take: 200 }),
         db.listSecurityEvents({ take: 200 }),
         db.listIncidents({ take: 200 }),
       ]);
+      // Use in-memory postgresDB for deviceTokens (tokens generated via API are stored here)
+      const deviceTokens = postgresDB.getDeviceTokens();
       socket.emit('initial_state', {
         vehicles, drivers, officers, deviceTokens, securityEvents, incidents,
         timestamp: new Date().toISOString(),

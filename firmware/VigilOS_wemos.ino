@@ -236,7 +236,10 @@ void loop() {
   unsigned long now = millis();
 
   // ── TASK 1: GPS Parsing + Dual-Stage Filter (Highest priority) ────────────
+  static uint32_t gpsByteCount = 0;
+  static unsigned long lastGpsByteReport = 0;
   while (gpsSerial.available() > 0) {
+    gpsByteCount++;
     if (gps.encode(gpsSerial.read())) {
       if (gps.location.isValid()) {
         gpsHasFix = true;
@@ -256,6 +259,18 @@ void loop() {
         }
       }
     }
+  }
+
+  // Diagnostic: show GPS byte flow every 10s if no fix
+  if (!gpsHasFix && (now - lastGpsByteReport > 10000)) {
+    lastGpsByteReport = now;
+    Serial.printf("[GPS-DIAG] Raw bytes received: %lu | GPS serial available: %d\n",
+                  gpsByteCount, gpsSerial.available());
+    if (gpsByteCount == 0) {
+      Serial.println(F("[GPS-DIAG] WARNING: Zero bytes from GPS module! Check wiring/power."));
+      Serial.println(F("[GPS-DIAG] Verify: GPS TX -> D2 (GPIO4), GPS VCC -> 3.3V/5V, GPS GND -> GND"));
+    }
+    gpsByteCount = 0;
   }
 
   // Check if GPS fix is lost
@@ -335,6 +350,7 @@ void loop() {
   }
 
   // ── CRITICAL: Yield to WiFi Stack ────────────────────────────────────────
+  delay(1);
   yield();
 }
 
@@ -518,13 +534,14 @@ void sendTelemetry(bool emergency) {
   float drift = haversineDistanceM(rawLat, rawLng, lat, lng);
 
   // Build JSON payload — include both filtered and raw for backend diagnostics
-  char payload[640];
+  char payload[700];
   snprintf(payload, sizeof(payload),
     "{\"vehicleId\":\"%s\",\"lat\":%.6f,\"lng\":%.6f,"
     "\"rawLat\":%.6f,\"rawLng\":%.6f,"
     "\"speed\":%.1f,\"heading\":%d,"
     "\"satellites\":%d,\"hdop\":%.1f,"
-    "\"filterActive\":%s}",
+    "\"filterActive\":%s,"
+    "\"passengers\":0}",
     DEVICE_ID, lat, lng,
     rawLat, rawLng,
     spd, hdg,
