@@ -103,6 +103,7 @@ CREATE TABLE "tenants" (
   "slug" TEXT NOT NULL,
   "status" "TenantStatus" NOT NULL DEFAULT 'ACTIVE',
   "region" TEXT,
+  "industry" TEXT,
   "contactEmail" TEXT NOT NULL,
   "phone" TEXT,
   "address" TEXT,
