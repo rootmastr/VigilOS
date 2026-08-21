@@ -153,7 +153,11 @@ export class MQTTBrokerSimulator {
 
     // Set vehicle status to emergency and scale heartbeat to 1s
     postgresDB.updateVehicleStatus(vehicleId, 'emergency', 1);
-    this.startVehicleTelemetryLoop(vehicleId, 1);
+
+    // Only restart simulation if device is NOT sending real telemetry
+    if (!this.realTelemetryActive.has(vehicleId)) {
+      this.startVehicleTelemetryLoop(vehicleId, 1);
+    }
 
     // Record incident in audit trail
     const incidentRecord = postgresDB.createIncidentRecord({
