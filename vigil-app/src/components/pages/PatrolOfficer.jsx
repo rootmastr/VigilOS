@@ -153,7 +153,7 @@ export default function PatrolOfficer({ officers = [], incidents = [], onUpdateO
                         </div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'flex', gap: 12 }}>
                           <span>Driver: <b>{inc.driverName}</b></span>
-                          <span>Coords: <b>({inc.location?.lat?.toFixed(4)}, {inc.location?.lng?.toFixed(4)})</b></span>
+                          <span>Coords: <b>({inc.location?.lat != null ? `${Math.abs(inc.location.lat).toFixed(4)}°${inc.location.lat >= 0 ? 'N' : 'S'}` : '--'}, {inc.location?.lng != null ? `${Math.abs(inc.location.lng).toFixed(4)}°${inc.location.lng >= 0 ? 'E' : 'W'}` : '--'})</b></span>
                         </div>
                       </div>
                     </div>

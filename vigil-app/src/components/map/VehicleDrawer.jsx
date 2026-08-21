@@ -170,10 +170,10 @@ export default function VehicleDrawer({ vehicle, onClose }) {
           <div className="telemetry-item" style={{ marginBottom: 6 }}>
             <div className="telemetry-label">GPS Position</div>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
-              {vehicle.lat != null ? `${vehicle.lat.toFixed(6)}°S` : '--°S'}
+              {vehicle.lat != null ? `${Math.abs(vehicle.lat).toFixed(6)}°${vehicle.lat >= 0 ? 'N' : 'S'}` : '--°S'}
             </div>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)' }}>
-              {vehicle.lng != null ? `${vehicle.lng.toFixed(6)}°E` : '--°E'}
+              {vehicle.lng != null ? `${Math.abs(vehicle.lng).toFixed(6)}°${vehicle.lng >= 0 ? 'E' : 'W'}` : '--°E'}
             </div>
           </div>
         </div>

@@ -105,8 +105,8 @@ router.post('/vehicles', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_A
       code,
       name,
       type: type || 'BUS',
-      lat: null,
-      lng: null,
+      lat: lat || -6.9666,
+      lng: lng || 110.4196,
       speedLimit: speedLimit || 50,
       status: 'OFFLINE',
     });

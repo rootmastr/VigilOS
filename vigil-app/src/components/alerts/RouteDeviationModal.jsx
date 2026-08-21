@@ -168,10 +168,10 @@ export default function RouteDeviationModal({ deviation, onClose, onResolve }) {
                 <MapPin size={10} style={{ display: 'inline', marginRight: 3 }} />Vehicle Position
               </div>
               <div className="emergency-info-value">
-                {vehicle.lat ? vehicle.lat.toFixed(4) : '--'}°S
+                {vehicle.lat != null ? `${Math.abs(vehicle.lat).toFixed(4)}°${vehicle.lat >= 0 ? 'N' : 'S'}` : '--°S'}
               </div>
               <div className="emergency-info-value">
-                {vehicle.lng ? vehicle.lng.toFixed(4) : '--'}°E
+                {vehicle.lng != null ? `${Math.abs(vehicle.lng).toFixed(4)}°${vehicle.lng >= 0 ? 'E' : 'W'}` : '--°E'}
               </div>
             </div>
             <div className="emergency-info-item">

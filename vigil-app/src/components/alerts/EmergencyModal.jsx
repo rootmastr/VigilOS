@@ -144,8 +144,8 @@ export default function EmergencyModal({ vehicle, queue, activeIndex, onQueueSel
           <div className="emergency-info-grid">
             <div className="emergency-info-item">
               <div className="emergency-info-label"><MapPin size={10} style={{ display: 'inline', marginRight: 3 }} />Location</div>
-              <div className="emergency-info-value">{vehicle.lat?.toFixed(4) || '--'}°S</div>
-              <div className="emergency-info-value">{vehicle.lng?.toFixed(4) || '--'}°E</div>
+              <div className="emergency-info-value">{vehicle.lat != null ? `${Math.abs(vehicle.lat).toFixed(4)}°${vehicle.lat >= 0 ? 'N' : 'S'}` : '--°S'}</div>
+              <div className="emergency-info-value">{vehicle.lng != null ? `${Math.abs(vehicle.lng).toFixed(4)}°${vehicle.lng >= 0 ? 'E' : 'W'}` : '--°E'}</div>
             </div>
             <div className="emergency-info-item">
               <div className="emergency-info-label"><User size={10} style={{ display: 'inline', marginRight: 3 }} />Driver</div>

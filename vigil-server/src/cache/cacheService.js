@@ -172,10 +172,12 @@ export async function updateDeviceState(deviceId, { lat, lng, speed, heading, pa
 export async function getDeviceState(deviceId) {
   const raw = await redisClient.hgetall(KEY.state(deviceId));
   if (!raw) return null;
+  const parsedLat = parseFloat(raw.lat);
+  const parsedLng = parseFloat(raw.lng);
   return {
     deviceId,
-    lat: parseFloat(raw.lat) || 0,
-    lng: parseFloat(raw.lng) || 0,
+    lat: Number.isFinite(parsedLat) ? parsedLat : null,
+    lng: Number.isFinite(parsedLng) ? parsedLng : null,
     speed: parseFloat(raw.speed) || 0,
     heading: parseFloat(raw.heading) || 0,
     passengers: parseInt(raw.passengers) || 0,
@@ -197,11 +199,13 @@ export async function getAllDeviceStates(deviceIds) {
   return deviceIds.map((id, i) => {
     const raw = results[i];
     if (!raw) return { deviceId: id, cached: false };
+    const parsedLat = parseFloat(raw.lat);
+    const parsedLng = parseFloat(raw.lng);
     return {
       deviceId: id,
       cached: true,
-      lat: parseFloat(raw.lat) || 0,
-      lng: parseFloat(raw.lng) || 0,
+      lat: Number.isFinite(parsedLat) ? parsedLat : null,
+      lng: Number.isFinite(parsedLng) ? parsedLng : null,
       speed: parseFloat(raw.speed) || 0,
       heading: parseFloat(raw.heading) || 0,
       passengers: parseInt(raw.passengers) || 0,

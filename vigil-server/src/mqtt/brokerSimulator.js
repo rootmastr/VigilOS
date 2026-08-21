@@ -207,13 +207,28 @@ export class MQTTBrokerSimulator {
     const vehicle = postgresDB.getVehicleById(vehicleId);
     if (!vehicle) return { error: 'Vehicle not found' };
 
+    // Stop simulation loop — real hardware is sending data
+    if (this.telemetryIntervals.has(vehicleId)) {
+      clearInterval(this.telemetryIntervals.get(vehicleId));
+      this.telemetryIntervals.delete(vehicleId);
+    }
+
     const toNum = (v, fallback) => (Number.isFinite(Number(v)) ? Number(v) : fallback);
+
+    const clampLat = (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) && n >= -90 && n <= 90 ? n : null;
+    };
+    const clampLng = (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) && n >= -180 && n <= 180 ? n : null;
+    };
 
     const telemetryPayload = {
       topic: `fleet/${vehicleId}/telemetry`,
       vehicleId,
-      lat: toNum(lat, vehicle.lat),
-      lng: toNum(lng, vehicle.lng),
+      lat: clampLat(lat) ?? vehicle.lat ?? -6.9666,
+      lng: clampLng(lng) ?? vehicle.lng ?? 110.4196,
       speed: toNum(speed, 0),
       heading: toNum(heading, 0),
       passengers: toNum(passengers, 0),
@@ -222,9 +237,7 @@ export class MQTTBrokerSimulator {
 
     const evalResult = this.speedEvaluator.evaluateTelemetry(telemetryPayload);
 
-    if (evalResult.heartBeatIntervalSec && vehicle.heartBeatIntervalSec !== evalResult.heartBeatIntervalSec) {
-      this.startVehicleTelemetryLoop(vehicleId, evalResult.heartBeatIntervalSec);
-    }
+    // Note: Do NOT restart telemetry loop here — real hardware sends its own data
 
     // ── Redis: Refresh device presence (30s TTL) and update latest state cache ──
     refreshDevicePresence(vehicleId);
