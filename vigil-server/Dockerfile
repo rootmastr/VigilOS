@@ -7,7 +7,7 @@ WORKDIR /app
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Install dependencies
+# Install all dependencies (including dev for prisma CLI)
 RUN npm install
 
 # Generate Prisma client
@@ -26,7 +26,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install --omit=dev && npm cache clean --force
 
+# Copy Prisma client + CLI from builder (needed for db:migrate:prod)
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 COPY prisma ./prisma
 COPY src ./src
 
