@@ -33,11 +33,21 @@ router.post('/generate', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_A
 });
 
 router.post('/:id/revoke', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req, res) => {
-  const revoked = postgresDB.revokeDeviceToken(req.params.id);
+  // Revoke by token id OR deviceId
+  let revoked = postgresDB.revokeDeviceToken(req.params.id);
+  if (!revoked) {
+    // Try revoking by deviceId
+    const tokens = postgresDB.getDeviceTokens().filter(t => t.deviceId === req.params.id && t.status === 'ACTIVE');
+    for (const t of tokens) {
+      revoked = postgresDB.revokeDeviceToken(t.id);
+      if (revoked) await invalidateToken(revoked.token);
+    }
+  } else {
+    await invalidateToken(revoked.token);
+  }
   if (!revoked) {
     return res.status(404).json({ success: false, error: 'Token not found' });
   }
-  await invalidateToken(revoked.token);
   if (mqttBroker?.stopDeviceTelemetry) {
     mqttBroker.stopDeviceTelemetry(revoked.deviceId);
   }

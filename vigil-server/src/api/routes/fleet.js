@@ -224,13 +224,21 @@ router.delete('/vehicles/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TE
       mqttBroker.stopDeviceTelemetry(vehicle.id);
     }
 
-    // Remove from in-memory store
-    postgresDB.vehicles = postgresDB.vehicles.filter(v => v.id !== req.params.id);
+    // Remove from in-memory store (match by id OR code, same as getVehicleById)
+    postgresDB.vehicles = postgresDB.vehicles.filter(v => v.id !== req.params.id && v.code !== req.params.id);
 
     // Broadcast via MQTT
     if (mqttBroker?.onSocketBroadcast) {
       mqttBroker.onSocketBroadcast('vehicle_deleted', { id: req.params.id });
     }
+
+    // Revoke any active device tokens for this vehicle
+    postgresDB.getDeviceTokens()
+      .filter(t => t.deviceId === vehicle.id || t.deviceId === vehicle.code)
+      .forEach(t => {
+        t.status = 'REVOKED';
+        t.revokedAt = new Date().toISOString();
+      });
 
     // Log vehicle deletion
     try {
