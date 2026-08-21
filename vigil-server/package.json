@@ -48,6 +48,6 @@
     "nock": "^13.4.0",
     "prettier": "^3.0.3",
     "prisma": "^6.9.0",
-    "supertest": "^6.3.3"
+    "supertest": "^7.2.2"
   }
 }
