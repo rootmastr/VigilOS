@@ -47,10 +47,12 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
 
   useEffect(() => {
     let active = true;
-    const socket = io(BACKEND_URL, {
+    const socket = io(BACKEND_URL || undefined, {
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
-      transports: ['websocket', 'polling']
+      reconnectionDelayMax: 5000,
+      timeout: 10000,
+      transports: ['polling', 'websocket']
     });
 
     socketRef.current = socket;
@@ -65,6 +67,11 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
       if (!active) return;
       console.log('[WebSocket Client] Disconnected from VigilOS Backend Server');
       setConnected(false);
+    });
+
+    socket.on('connect_error', (err) => {
+      if (!active) return;
+      console.warn('[WebSocket Client] Connection error:', err.message);
     });
 
     socket.on('initial_state', (data) => {

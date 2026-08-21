@@ -264,7 +264,7 @@ export default function LiveMap({ vehicles, onVehicleClick, selectedVehicle, onC
 
     if (showHeatmap) {
       const heatData = vehicles
-        .filter(v => v.speed > 0)
+        .filter(v => v.speed > 0 && v.lat != null && v.lng != null)
         .map(v => [v.lat, v.lng, Math.min(v.speed / 60, 1)]);
       heatLayerRef.current = L.heatLayer(heatData, {
         radius: 30,
@@ -300,6 +300,7 @@ export default function LiveMap({ vehicles, onVehicleClick, selectedVehicle, onC
     });
 
     vehicles.forEach(vehicle => {
+      if (vehicle.lat == null || vehicle.lng == null) return;
       const latLng = [vehicle.lat, vehicle.lng];
       const icon = createVehicleIcon(vehicle.status, vehicle.heading, vehicle.type);
       const prevPos = prevPositions[vehicle.id];
@@ -343,7 +344,7 @@ export default function LiveMap({ vehicles, onVehicleClick, selectedVehicle, onC
   const vehicleStatuses = vehicles.map(v => v.status).join(',');
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current) return;
-    const alertVehicle = vehicles.find(v => v.status === 'emergency' || v.status === 'warning');
+    const alertVehicle = vehicles.find(v => (v.status === 'emergency' || v.status === 'warning') && v.lat != null && v.lng != null);
     if (alertVehicle) {
       mapInstanceRef.current.flyTo([alertVehicle.lat, alertVehicle.lng], 15, { duration: 1.5 });
     }
@@ -364,7 +365,7 @@ export default function LiveMap({ vehicles, onVehicleClick, selectedVehicle, onC
     setSearchQuery('');
     setSearchFocused(false);
     onVehicleClick && onVehicleClick(vehicle);
-    if (mapInstanceRef.current) {
+    if (mapInstanceRef.current && vehicle.lat != null && vehicle.lng != null) {
       mapInstanceRef.current.flyTo([vehicle.lat, vehicle.lng], 16, { duration: 1 });
     }
   };

@@ -23,6 +23,7 @@ export default function PublicTransit({ vehicles = [], onTriggerPanic }) {
 
   // Calculate ETA for selected station
   const calculateETA = (vehicle, station) => {
+    if (vehicle.lat == null || vehicle.lng == null) return { distKm: '--', timeMinutes: '--' };
     const R = 6371; // km
     const dLat = (station.lat - vehicle.lat) * Math.PI / 180;
     const dLng = (station.lng - vehicle.lng) * Math.PI / 180;
