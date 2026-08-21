@@ -18,16 +18,14 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
   const routeDeviationCallbackRef = useRef(onRouteDeviation);
 
   // Reset data when tenant changes — fetch fresh from API
+  // Note: vehicles are loaded via WebSocket initial_state (has live coordinates),
+  // not via REST API (which reads stale PostgreSQL defaults).
   useEffect(() => {
     let active = true;
     async function fetchInitial() {
       try {
-        const [vehRes, drvRes] = await Promise.all([
-          api.get('/api/v1/fleet/vehicles'),
-          api.get('/api/v1/fleet/drivers'),
-        ]);
+        const drvRes = await api.get('/api/v1/fleet/drivers');
         if (!active) return;
-        if (vehRes.data.success) setVehicles(vehRes.data.data);
         if (drvRes.data.success) setDrivers(drvRes.data.data);
       } catch (e) {
         console.warn('Failed to fetch initial fleet data:', e);

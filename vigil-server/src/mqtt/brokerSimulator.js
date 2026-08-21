@@ -16,6 +16,8 @@ export class MQTTBrokerSimulator {
     this.onSocketBroadcast = onSocketBroadcast;
     this.telemetryIntervals = new Map();
     this.isStreaming = false;
+    // Track devices that are sending real telemetry (prevents simulation restart)
+    this.realTelemetryActive = new Set();
     // Emergency queue for multiple simultaneous emergencies
     this.emergencyQueue = [];
   }
@@ -41,6 +43,11 @@ export class MQTTBrokerSimulator {
   }
 
   startDeviceTelemetry(vehicleId) {
+    // Don't restart simulation if real device is already sending telemetry
+    if (this.realTelemetryActive.has(vehicleId)) {
+      console.log(`[MQTT Broker] Skipping simulation for ${vehicleId} — real telemetry active`);
+      return;
+    }
     const vehicle = postgresDB.getVehicleById(vehicleId);
     if (!vehicle) return;
     postgresDB.updateVehicleStatus(vehicleId, 'normal', vehicle.heartBeatIntervalSec || 10);
@@ -212,6 +219,9 @@ export class MQTTBrokerSimulator {
       clearInterval(this.telemetryIntervals.get(vehicleId));
       this.telemetryIntervals.delete(vehicleId);
     }
+
+    // Mark this device as receiving real telemetry (prevents simulation restart)
+    this.realTelemetryActive.add(vehicleId);
 
     const toNum = (v, fallback) => (Number.isFinite(Number(v)) ? Number(v) : fallback);
 

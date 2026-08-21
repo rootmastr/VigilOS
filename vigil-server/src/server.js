@@ -124,17 +124,18 @@ app.use('/api/v1', apiRouter);
 io.on('connection', (socket) => {
   console.log(`[Socket.io] Command Center Client connected: ${socket.id}`);
 
-  // Send initial state snapshot on connection — read from Prisma (persistent)
+  // Send initial state snapshot on connection — read from in-memory store (has live coordinates)
   const emitInitialState = async () => {
     try {
-      const [vehicles, drivers, officers, securityEvents, incidents] = await Promise.all([
-        db.listVehicles({ take: 200 }),
+      const [drivers, officers, securityEvents, incidents] = await Promise.all([
         db.listDrivers({ take: 200 }),
         db.listOfficers({ take: 200 }),
         db.listSecurityEvents({ take: 200 }),
         db.listIncidents({ take: 200 }),
       ]);
-      // Use in-memory postgresDB for deviceTokens (tokens generated via API are stored here)
+      // Use in-memory postgresDB for vehicles (has live telemetry coordinates)
+      // and deviceTokens (tokens generated via API are stored here)
+      const vehicles = postgresDB.getVehicles();
       const deviceTokens = postgresDB.getDeviceTokens();
       socket.emit('initial_state', {
         vehicles, drivers, officers, deviceTokens, securityEvents, incidents,

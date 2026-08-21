@@ -6,6 +6,7 @@
 
 import { postgresDB } from '../database/postgresAdapter.js';
 import { influxDB } from '../database/influxAdapter.js';
+import { db } from '../services/databaseService.js';
 
 export class SpeedEvaluator {
   constructor(onControlCommand) {
@@ -55,6 +56,10 @@ export class SpeedEvaluator {
 
     // Update PostGIS DB & InfluxDB
     postgresDB.updateVehicleLocation(vehicleId, { lat, lng, speed, heading, passengers });
+
+    // Persist to PostgreSQL for crash recovery and initial_state on reconnect (fire-and-forget)
+    db.updateVehicle(vehicleId, { lat, lng, speed, heading }).catch(() => {});
+
     influxDB.writePoint({
       vehicleId,
       lat,
