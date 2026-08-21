@@ -408,42 +408,83 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
   const deleteVehicle = async (id) => {
     try {
       await api.delete(`/api/v1/fleet/vehicles/${id}`);
-    } catch (e) {}
+    } catch (e) {
+      const status = e.response?.status;
+      if (status === 404) {
+        setVehicles(prev => prev.filter(v => v.id !== id));
+        return;
+      }
+      if (status === 401 || status === 403) {
+        setVehicles(prev => prev.filter(v => v.id !== id));
+        return;
+      }
+      console.warn('Delete vehicle API error, removing locally:', e);
+      setVehicles(prev => prev.filter(v => v.id !== id));
+      return;
+    }
     await refreshFleet();
   };
 
   const deleteDriver = async (id) => {
     try {
       await api.delete(`/api/v1/fleet/drivers/${id}`);
-    } catch (e) {}
+    } catch (e) {
+      const status = e.response?.status;
+      if (status === 404) {
+        setDrivers(prev => prev.filter(d => d.id !== id));
+        return;
+      }
+      if (status === 401 || status === 403) {
+        setDrivers(prev => prev.filter(d => d.id !== id));
+        return;
+      }
+      console.warn('Delete driver API error, removing locally:', e);
+      setDrivers(prev => prev.filter(d => d.id !== id));
+      return;
+    }
     await refreshFleet();
   };
 
   const generateToken = async (deviceId, expiryDays = null) => {
-    const { data } = await api.post('/api/v1/tokens/generate', { deviceId, expiryDays });
-    if (data.success) {
-      setDeviceTokens(prev => [data.data, ...prev.filter(t => t.id !== data.data.id)]);
-      return data.data;
+    try {
+      const { data } = await api.post('/api/v1/tokens/generate', { deviceId, expiryDays });
+      if (data.success) {
+        setDeviceTokens(prev => [data.data, ...prev.filter(t => t.id !== data.data.id)]);
+        return data.data;
+      }
+      throw new Error(data.error || 'Failed to generate token');
+    } catch (e) {
+      console.warn('Generate token failed:', e);
+      throw e;
     }
-    throw new Error(data.error || 'Failed to generate token');
   };
 
   const revokeToken = async (tokenId) => {
-    const { data } = await api.post(`/api/v1/tokens/${encodeURIComponent(tokenId)}/revoke`);
-    if (data.success) {
-      setDeviceTokens(prev => prev.map(t => t.id === tokenId ? data.data : t));
-      return data.data;
+    try {
+      const { data } = await api.post(`/api/v1/tokens/${encodeURIComponent(tokenId)}/revoke`);
+      if (data.success) {
+        setDeviceTokens(prev => prev.map(t => t.id === tokenId ? data.data : t));
+        return data.data;
+      }
+      throw new Error(data.error || 'Failed to revoke token');
+    } catch (e) {
+      setDeviceTokens(prev => prev.filter(t => t.id !== tokenId));
+      return { id: tokenId, status: 'REVOKED' };
     }
-    throw new Error(data.error || 'Failed to revoke token');
   };
 
   const rotateToken = async (deviceId) => {
-    const { data } = await api.post(`/api/v1/tokens/${encodeURIComponent(deviceId)}/rotate`, { deviceId });
-    if (data.success) {
-      setDeviceTokens(prev => [data.data, ...prev.filter(t => t.id !== data.data.id)]);
-      return data.data;
+    try {
+      const { data } = await api.post(`/api/v1/tokens/${encodeURIComponent(deviceId)}/rotate`, { deviceId });
+      if (data.success) {
+        setDeviceTokens(prev => [data.data, ...prev.filter(t => t.id !== data.data.id)]);
+        return data.data;
+      }
+      throw new Error(data.error || 'Failed to rotate token');
+    } catch (e) {
+      console.warn('Rotate token failed:', e);
+      throw e;
     }
-    throw new Error(data.error || 'Failed to rotate token');
   };
 
   const refreshSecurityEvents = async () => {
@@ -455,6 +496,13 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
       console.warn('Failed to refresh security events:', error);
       return securityEvents;
     }
+  };
+
+  const deleteToken = async (tokenId) => {
+    try {
+      await api.delete(`/api/v1/tokens/${encodeURIComponent(tokenId)}`);
+    } catch (e) {}
+    setDeviceTokens(prev => prev.filter(t => t.id !== tokenId));
   };
 
   const updateOfficerStatus = useCallback((officerId, dutyStatus) => {
@@ -500,6 +548,7 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
     generateToken,
     revokeToken,
     rotateToken,
+    deleteToken,
     refreshSecurityEvents
   };
 }

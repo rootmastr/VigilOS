@@ -402,6 +402,13 @@ class PostgresAdapter {
     return tokenObj;
   }
 
+  deleteDeviceToken(tokenId) {
+    const index = this.deviceTokens.findIndex(t => t.id === tokenId);
+    if (index === -1) return false;
+    this.deviceTokens.splice(index, 1);
+    return true;
+  }
+
   rotateDeviceToken(deviceId, tenantId = 'ws-semarang-01') {
     // Revoke old tokens for this device
     this.deviceTokens

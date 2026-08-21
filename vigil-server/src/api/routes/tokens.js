@@ -54,6 +54,19 @@ router.post('/:id/revoke', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT
   res.json({ success: true, data: revoked });
 });
 
+router.delete('/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req, res) => {
+  const token = postgresDB.getDeviceTokens().find(t => t.id === req.params.id);
+  if (!token) {
+    return res.status(404).json({ success: false, error: 'Token not found' });
+  }
+  if (mqttBroker?.stopDeviceTelemetry) {
+    mqttBroker.stopDeviceTelemetry(token.deviceId);
+  }
+  postgresDB.deleteDeviceToken(req.params.id);
+  await invalidateToken(token.token);
+  res.json({ success: true, message: 'Token deleted' });
+});
+
 router.post('/:id/rotate', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req, res) => {
   const { deviceId } = req.body;
   const existingToken = postgresDB.getTokenByValue(req.params.id)

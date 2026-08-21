@@ -13,7 +13,8 @@ export default function FleetAdmin({
   securityEvents = [],
   onGenerateToken,
   onRevokeToken,
-  onRotateToken
+  onRotateToken,
+  onDeleteToken
 }) {
   const [activeTab, setActiveTab] = useState('devices');
   const [showVehicleModal, setShowVehicleModal] = useState(false);
@@ -520,6 +521,13 @@ export default function FleetAdmin({
                             style={{ ...iconBtnStyle, color: '#ef4444', opacity: t.status === 'REVOKED' ? 0.4 : 1 }}
                           >
                             <ShieldAlert size={13} />
+                          </button>
+                          <button
+                            onClick={() => onDeleteToken && onDeleteToken(t.id)}
+                            title="Delete token"
+                            style={{ ...iconBtnStyle, color: '#ef4444' }}
+                          >
+                            <Trash2 size={13} />
                           </button>
                         </div>
                       </td>

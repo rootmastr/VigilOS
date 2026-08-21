@@ -134,7 +134,8 @@ export default function App() {
     routeDeviations,
     generateToken,
     revokeToken,
-    rotateToken
+    rotateToken,
+    deleteToken
   } = useWebSocket(handleEmergency, handleRouteDeviation, currentTenant);
 
   // Confirmation modal for destructive actions
@@ -413,6 +414,16 @@ export default function App() {
                 const token = await rotateToken(deviceId);
                 showToast(`🔄 Token rotated for ${token.deviceId}`);
                 return token;
+              }}
+              onDeleteToken={(tokenId) => {
+                showConfirm(
+                  'Delete Token',
+                  'This will permanently remove this token. The bound device will lose access. Continue?',
+                  async () => {
+                    await deleteToken(tokenId);
+                    showToast(`🗑️ Token ${tokenId} deleted`);
+                  }
+                );
               }}
             />
           )}
