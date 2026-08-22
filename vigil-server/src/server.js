@@ -29,6 +29,21 @@ const app = express();
 const server = http.createServer(app);
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// CORS — Must be loaded BEFORE security middleware so preflight OPTIONS works
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const corsOriginEnv = process.env.CORS_ORIGIN || process.env.CORS_ORIGINS;
+const corsOrigin = corsOriginEnv
+  ? corsOriginEnv.split(',').map(s => s.trim())
+  : true;
+app.use(cors({ origin: corsOrigin, credentials: true, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'] }));
+
+// Handle OPTIONS preflight explicitly before any security middleware
+app.options('*', cors({ origin: corsOrigin, credentials: true }));
+
+app.use(express.json());
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // SECURITY MIDDLEWARE STACK
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -36,16 +51,6 @@ app.use(securityHeaders);
 app.use(sanitizeRequest);
 app.use(ddosProtection);
 app.use(auditLogger);
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// CORE MIDDLEWARE
-// ═══════════════════════════════════════════════════════════════════════════════
-
-const corsOrigin = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map(s => s.trim())
-  : true;
-app.use(cors({ origin: corsOrigin, credentials: true }));
-app.use(express.json());
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // WEBSOCKET SERVERS
