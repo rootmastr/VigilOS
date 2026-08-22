@@ -36,10 +36,28 @@ const corsOriginEnv = process.env.CORS_ORIGIN || process.env.CORS_ORIGINS;
 const corsOrigin = corsOriginEnv
   ? corsOriginEnv.split(',').map(s => s.trim())
   : true;
-app.use(cors({ origin: corsOrigin, credentials: true, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'] }));
+
+const isDev = process.env.NODE_ENV !== 'production';
+app.use(cors({
+  origin: isDev
+    ? true
+    : (origin, callback) => {
+        if (!origin || corsOrigin.includes(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
+}));
 
 // Handle OPTIONS preflight explicitly before any security middleware
-app.options('*', cors({ origin: corsOrigin, credentials: true }));
+app.options('*', cors({
+  origin: isDev ? true : corsOrigin,
+  credentials: true,
+}));
 
 app.use(express.json());
 
