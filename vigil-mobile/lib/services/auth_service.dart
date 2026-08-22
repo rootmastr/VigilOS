@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/user.dart';
+import '../config/api_config.dart';
 
 // Platform-specific storage
 import 'storage_service.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://111.68.31.232:4141/api/v1';
+  static String get baseUrl => ApiConfig.baseUrl;
   static final StorageService _storage = StorageService();
 
   static String? _token;
@@ -23,21 +24,37 @@ class AuthService {
         Uri.parse('$baseUrl/auth/login'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({'email': email, 'password': password}),
-      );
+      ).timeout(const Duration(seconds: 15));
 
-      if (response.statusCode == 200) {
-        final body = json.decode(response.body);
-        if (body['success'] == true) {
-          _token = body['data']['accessToken'] ?? body['data']['token'];
-          _currentUser = User.fromJson(body['data']['user']);
-          await _saveToken(_token!);
-          await _saveUser(_currentUser!);
-          return {'success': true, 'user': _currentUser};
-        }
+      final body = json.decode(response.body);
+
+      if (response.statusCode == 200 && body['success'] == true) {
+        _token = body['data']['accessToken'] ?? body['data']['token'];
+        _currentUser = User.fromJson(body['data']['user']);
+        await _saveToken(_token!);
+        await _saveUser(_currentUser!);
+        return {'success': true, 'user': _currentUser};
       }
-      return {'success': false, 'error': 'Invalid email or password'};
+
+      // Extract actual error from server response
+      String errorMsg;
+      if (response.statusCode == 429) {
+        errorMsg = body['message'] ?? 'Terlalu banyak percobaan login. Coba lagi nanti.';
+      } else if (response.statusCode == 403) {
+        errorMsg = body['error'] ?? 'Akun tidak aktif.';
+      } else if (response.statusCode == 401) {
+        errorMsg = body['error'] ?? 'Email atau password salah.';
+      } else if (response.statusCode >= 500) {
+        errorMsg = 'Server error. Coba lagi nanti.';
+      } else {
+        errorMsg = body['error'] ?? 'Email atau password salah.';
+      }
+      return {'success': false, 'error': errorMsg};
     } catch (e) {
-      return {'success': false, 'error': 'Connection failed: $e'};
+      if (e.toString().contains('TimeoutException') || e.toString().contains('timed out')) {
+        return {'success': false, 'error': 'Koneksi timeout. Periksa jaringan Anda.'};
+      }
+      return {'success': false, 'error': 'Gagal terhubung ke server. Periksa koneksi jaringan.'};
     }
   }
 
@@ -58,21 +75,32 @@ class AuthService {
           'password': password,
           'role': role,
         }),
-      );
+      ).timeout(const Duration(seconds: 15));
 
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        final body = json.decode(response.body);
-        if (body['success'] == true) {
-          _token = body['data']['accessToken'] ?? body['data']['token'];
-          _currentUser = User.fromJson(body['data']['user']);
-          await _saveToken(_token!);
-          await _saveUser(_currentUser!);
-          return {'success': true, 'user': _currentUser};
-        }
+      final body = json.decode(response.body);
+
+      if ((response.statusCode == 201 || response.statusCode == 200) && body['success'] == true) {
+        _token = body['data']['accessToken'] ?? body['data']['token'];
+        _currentUser = User.fromJson(body['data']['user']);
+        await _saveToken(_token!);
+        await _saveUser(_currentUser!);
+        return {'success': true, 'user': _currentUser};
       }
-      return {'success': false, 'error': 'Registration failed'};
+
+      String errorMsg;
+      if (response.statusCode == 409) {
+        errorMsg = body['error'] ?? 'Email sudah terdaftar.';
+      } else if (response.statusCode >= 500) {
+        errorMsg = 'Server error. Coba lagi nanti.';
+      } else {
+        errorMsg = body['error'] ?? 'Registrasi gagal.';
+      }
+      return {'success': false, 'error': errorMsg};
     } catch (e) {
-      return {'success': false, 'error': 'Connection failed: $e'};
+      if (e.toString().contains('TimeoutException') || e.toString().contains('timed out')) {
+        return {'success': false, 'error': 'Koneksi timeout. Periksa jaringan Anda.'};
+      }
+      return {'success': false, 'error': 'Gagal terhubung ke server. Periksa koneksi jaringan.'};
     }
   }
 
