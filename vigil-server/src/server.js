@@ -204,6 +204,24 @@ db.connect().then(async () => {
     console.error('[DB] Failed to sync vehicles:', err.message);
   }
 
+  // Load device tokens from Prisma into in-memory store
+  try {
+    const tokens = await db.listDeviceTokens({ take: 500 });
+    postgresDB.deviceTokens = tokens.map(t => ({
+      id: t.id,
+      token: t.tokenHash,
+      deviceId: t.deviceId,
+      tenantId: t.tenantId,
+      status: t.status,
+      createdAt: t.createdAt?.toISOString?.() || t.createdAt,
+      expiresAt: t.expiresAt?.toISOString?.() || t.expiresAt,
+      lastUsedAt: t.lastUsedAt?.toISOString?.() || t.lastUsedAt,
+    }));
+    console.log(`[DB] Synced ${tokens.length} device tokens from PostgreSQL to in-memory store`);
+  } catch (err) {
+    console.error('[DB] Failed to sync device tokens:', err.message);
+  }
+
   // Start Ingestion Pipeline (reads from in-memory store)
   mqttBroker.startIngestionPipeline();
 

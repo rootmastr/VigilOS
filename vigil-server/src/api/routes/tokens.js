@@ -2,6 +2,7 @@ import express from 'express';
 import { authenticateToken, requireRole } from '../../middleware/auth.js';
 import { postgresDB } from '../../database/postgresAdapter.js';
 import { invalidateToken } from '../../cache/cacheService.js';
+import { db } from '../../services/databaseService.js';
 
 const router = express.Router();
 
@@ -16,16 +17,30 @@ router.get('/', authenticateToken, (req, res) => {
   res.json({ success: true, count: tokens.length, data: tokens });
 });
 
-router.post('/generate', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), (req, res) => {
+router.post('/generate', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req, res) => {
   const { deviceId, expiryDays } = req.body;
   if (!deviceId) {
     return res.status(400).json({ success: false, error: 'deviceId is required to bind token' });
   }
+  const tenantId = req.user.tenantId || 'ws-semarang-01';
   const newToken = postgresDB.generateDeviceToken(
     deviceId,
-    req.user.tenantId || 'ws-semarang-01',
+    tenantId,
     expiryDays ? Math.max(1, Number(expiryDays)) : null
   );
+  try {
+    await db.createDeviceToken({
+      id: newToken.id,
+      tenantId,
+      deviceId,
+      tokenHash: newToken.token,
+      status: 'ACTIVE',
+      permissions: ['telemetry:write'],
+      expiresAt: newToken.expiresAt ? new Date(newToken.expiresAt) : null,
+    });
+  } catch (err) {
+    console.error('[Tokens] Failed to persist token to DB:', err.message);
+  }
   if (mqttBroker?.startDeviceTelemetry) {
     mqttBroker.startDeviceTelemetry(deviceId);
   }
@@ -48,6 +63,14 @@ router.post('/:id/revoke', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT
   if (!revoked) {
     return res.status(404).json({ success: false, error: 'Token not found' });
   }
+  try {
+    await db.updateDeviceToken(revoked.id, {
+      status: 'REVOKED',
+      revokedAt: new Date(),
+    });
+  } catch (err) {
+    console.error('[Tokens] Failed to persist revoke to DB:', err.message);
+  }
   if (mqttBroker?.stopDeviceTelemetry) {
     mqttBroker.stopDeviceTelemetry(revoked.deviceId);
   }
@@ -64,6 +87,11 @@ router.delete('/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_ADMI
   }
   postgresDB.deleteDeviceToken(req.params.id);
   await invalidateToken(token.token);
+  try {
+    await db.deleteDeviceToken(req.params.id);
+  } catch (err) {
+    console.error('[Tokens] Failed to delete token from DB:', err.message);
+  }
   res.json({ success: true, message: 'Token deleted' });
 });
 
@@ -77,12 +105,31 @@ router.post('/:id/rotate', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT
     return res.status(400).json({ success: false, error: 'deviceId is required to rotate token' });
   }
 
+  const tenantId = req.user.tenantId || 'ws-semarang-01';
   const oldTokens = postgresDB.getDeviceTokens().filter(t => t.deviceId === targetDevice && t.status === 'ACTIVE');
   for (const t of oldTokens) {
     await invalidateToken(t.token);
+    try {
+      await db.updateDeviceToken(t.id, { status: 'REVOKED', revokedAt: new Date() });
+    } catch (err) {
+      console.error('[Tokens] Failed to persist revoke to DB:', err.message);
+    }
   }
 
-  const newToken = postgresDB.rotateDeviceToken(targetDevice);
+  const newToken = postgresDB.rotateDeviceToken(targetDevice, tenantId);
+  try {
+    await db.createDeviceToken({
+      id: newToken.id,
+      tenantId,
+      deviceId: targetDevice,
+      tokenHash: newToken.token,
+      status: 'ACTIVE',
+      permissions: ['telemetry:write'],
+      expiresAt: newToken.expiresAt ? new Date(newToken.expiresAt) : null,
+    });
+  } catch (err) {
+    console.error('[Tokens] Failed to persist rotated token to DB:', err.message);
+  }
   res.json({ success: true, data: newToken });
 });
 

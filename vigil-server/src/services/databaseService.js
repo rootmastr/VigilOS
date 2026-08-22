@@ -307,6 +307,10 @@ class DatabaseService {
     });
   }
 
+  async deleteDeviceToken(id) {
+    return this.prisma.deviceToken.delete({ where: { id } });
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════════
   // AUDIT LOG OPERATIONS
   // ═══════════════════════════════════════════════════════════════════════════════

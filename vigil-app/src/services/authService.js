@@ -1,6 +1,6 @@
 import api from './api';
 
-const TOKEN_KEY = 'vigil_auth_token';
+const TOKEN_KEY = 'vigil_access_token';
 const REFRESH_TOKEN_KEY = 'vigil_refresh_token';
 const USER_KEY = 'vigil_user';
 

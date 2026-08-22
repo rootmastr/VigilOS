@@ -42,8 +42,8 @@
 // ══════════════════════════════════════════════════════════════════════════════
 
 // WiFi credentials
-const char* WIFI_SSID     = "Disapa kopi";
-const char* WIFI_PASSWORD = "disapa24jam";
+const char* WIFI_SSID     = "LAB Fiber 02";
+const char* WIFI_PASSWORD = "smkws1234";
 
 // VigilOS Backend
 const char* SERVER_HOST    = "111.68.31.232";  // VigilOS Backend Server
@@ -55,7 +55,7 @@ const char* EMERGENCY_PATH = "/api/v1/emergency/trigger";
 const char* DEVICE_ID      = "TS-101";   // Vehicle code (e.g., TS-101 for TransSemarang)
 
 // Device token — generate via Command Center Fleet Admin, paste here
-const char* DEVICE_TOKEN   = "vgl_live_3b4195868d2cb3bcc706a9708d46347b";
+const char* DEVICE_TOKEN   = "vgl_live_307a136732f42589cc8af477c2b7fcb1";
 
 // Timing intervals (milliseconds)
 #define TELEMETRY_INTERVAL_MS    10000UL    // Send telemetry every 10s
