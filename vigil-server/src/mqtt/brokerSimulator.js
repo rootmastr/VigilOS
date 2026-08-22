@@ -253,6 +253,14 @@ export class MQTTBrokerSimulator {
 
     // Note: Do NOT restart telemetry loop here — real hardware sends its own data
 
+    // ── Update vehicle status to online in in-memory store ──
+    vehicle.status = 'online';
+    vehicle.lat = telemetryPayload.lat;
+    vehicle.lng = telemetryPayload.lng;
+    vehicle.speed = telemetryPayload.speed;
+    vehicle.heading = telemetryPayload.heading;
+    vehicle.passengers = telemetryPayload.passengers;
+
     // ── Redis: Refresh device presence (30s TTL) and update latest state cache ──
     refreshDevicePresence(vehicleId);
     updateDeviceState(vehicleId, {
@@ -261,7 +269,7 @@ export class MQTTBrokerSimulator {
       speed: telemetryPayload.speed,
       heading: telemetryPayload.heading,
       passengers: telemetryPayload.passengers,
-      status: vehicle.status,
+      status: 'online',
       timestamp: telemetryPayload.timestamp,
     });
 
@@ -273,7 +281,7 @@ export class MQTTBrokerSimulator {
         speed: telemetryPayload.speed,
         heading: telemetryPayload.heading,
         passengers: telemetryPayload.passengers,
-        status: vehicle.status,
+        status: 'online',
         heartBeatIntervalSec: evalResult.heartBeatIntervalSec,
         anomaly: evalResult.anomaly
       });

@@ -304,7 +304,7 @@ export default function FleetAdmin({
                       }} />
                       {v.status !== 'idle' ? 'ACTIVE' : 'INACTIVE'}
                     </button>
-                    <span className={`badge ${v.status === 'normal' ? 'badge-green' : v.status === 'idle' ? 'badge-blue' : 'badge-red'}`}>
+                    <span className={`badge ${v.status === 'normal' || v.status === 'online' ? 'badge-green' : v.status === 'idle' ? 'badge-blue' : 'badge-red'}`}>
                       {v.status}
                     </span>
                     <button

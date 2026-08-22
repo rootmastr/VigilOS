@@ -228,6 +228,22 @@ db.connect().then(async () => {
   // Redis Startup Sequence
   redisClient.connect().then(async () => {
     await cacheAllActiveTokens();
+
+    // Periodic presence check: mark vehicles idle after 30s of no telemetry
+    setInterval(async () => {
+      try {
+        const onlineIds = await redisClient.scanKeys('device:presence:*');
+        const onlineSet = new Set(onlineIds.map(k => k.replace('device:presence:', '')));
+        for (const v of postgresDB.vehicles) {
+          const wasOnline = v.status === 'online';
+          const isNowOnline = onlineSet.has(v.id);
+          if (wasOnline && !isNowOnline) {
+            v.status = 'idle';
+            socketBroadcast('vehicle_status_changed', v);
+          }
+        }
+      } catch (_) {}
+    }, 15000);
   });
 
   // Initialize Cron Jobs

@@ -356,7 +356,7 @@ export default function LiveMap({ vehicles, onVehicleClick, selectedVehicle, onC
     }
   };
 
-  const normalCount = vehicles.filter(v => v.status === 'normal').length;
+  const normalCount = vehicles.filter(v => v.status === 'normal' || v.status === 'online').length;
   const warnCount   = vehicles.filter(v => v.status === 'warning').length;
   const emergCount  = vehicles.filter(v => v.status === 'emergency').length;
   const totalCount  = vehicles.length;
@@ -423,11 +423,11 @@ export default function LiveMap({ vehicles, onVehicleClick, selectedVehicle, onC
                 <span
                   className="result-status"
                   style={{
-                    background: v.status === 'normal' ? 'rgba(16,185,129,0.15)' :
+                    background: v.status === 'normal' || v.status === 'online' ? 'rgba(16,185,129,0.15)' :
                                 v.status === 'warning' ? 'rgba(250,204,21,0.15)' :
                                 v.status === 'emergency' ? 'rgba(239,68,68,0.15)' :
                                 'rgba(107,114,128,0.15)',
-                    color: v.status === 'normal' ? '#10b981' :
+                    color: v.status === 'normal' || v.status === 'online' ? '#10b981' :
                            v.status === 'warning' ? '#facc15' :
                            v.status === 'emergency' ? '#ef4444' : '#6b7280',
                   }}
