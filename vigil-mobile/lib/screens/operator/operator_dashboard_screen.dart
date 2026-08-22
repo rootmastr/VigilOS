@@ -24,6 +24,7 @@ class _OperatorDashboardScreenState extends State<OperatorDashboardScreen> {
   String? selectedTenant;
   bool isLoading = true;
   bool _showMap = true;
+  bool _wsConnected = false;
   late WebSocketService wsService;
   final MapController _mapController = MapController();
 
@@ -38,6 +39,9 @@ class _OperatorDashboardScreenState extends State<OperatorDashboardScreen> {
 
   void _initWebSocket() {
     wsService = WebSocketService();
+    wsService.onConnectionChanged = (connected) {
+      if (mounted) setState(() => _wsConnected = connected);
+    };
     wsService.onEmergencyAlert = (incident) {
       setState(() => activeIncidents.insert(0, incident));
       if (mounted) {
@@ -53,6 +57,24 @@ class _OperatorDashboardScreenState extends State<OperatorDashboardScreen> {
     wsService.onVehiclesUpdate = (updatedVehicles) {
       setState(() {
         vehicles = updatedVehicles;
+        _applyTenantFilter();
+      });
+    };
+    wsService.onVehicleUpdated = (updatedVehicle) {
+      setState(() {
+        final idx = vehicles.indexWhere((v) => v.id == updatedVehicle.id);
+        if (idx >= 0) {
+          vehicles[idx] = vehicles[idx].copyWith(
+            lat: updatedVehicle.lat,
+            lng: updatedVehicle.lng,
+            speed: updatedVehicle.speed,
+            heading: updatedVehicle.heading,
+            status: updatedVehicle.status,
+            passengers: updatedVehicle.passengers,
+          );
+        } else {
+          vehicles.add(updatedVehicle);
+        }
         _applyTenantFilter();
       });
     };
@@ -109,7 +131,43 @@ class _OperatorDashboardScreenState extends State<OperatorDashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Command Center'),
+        title: Row(
+          children: [
+            const Text('Command Center'),
+            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: _wsConnected
+                    ? AppTheme.statusGreen.withOpacity(0.2)
+                    : AppTheme.statusRed.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: _wsConnected ? AppTheme.statusGreen : AppTheme.statusRed,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _wsConnected ? 'LIVE' : 'OFFLINE',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: _wsConnected ? AppTheme.statusGreen : AppTheme.statusRed,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             icon: Icon(_showMap ? Icons.list : Icons.map, color: AppTheme.textPrimary),
@@ -248,7 +306,7 @@ class _OperatorDashboardScreenState extends State<OperatorDashboardScreen> {
   }
 
   Widget _buildMapStatsBar() {
-    final active = filteredVehicles.where((v) => v.status == 'ACTIVE').length;
+    final active = filteredVehicles.where((v) => v.status == 'ACTIVE' || v.status == 'normal' || v.status == 'online').length;
     final alerts = filteredVehicles.where((v) => v.status == 'warning' || v.status == 'ALERT').length;
     final emergency = filteredVehicles.where((v) => v.status == 'emergency').length;
 
@@ -401,7 +459,7 @@ class _OperatorDashboardScreenState extends State<OperatorDashboardScreen> {
           const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(child: _buildStatusCard('Active', filteredVehicles.where((v) => v.status == 'ACTIVE').length.toString(), AppTheme.statusGreen)),
+              Expanded(child: _buildStatusCard('Active', filteredVehicles.where((v) => v.status == 'ACTIVE' || v.status == 'normal' || v.status == 'online').length.toString(), AppTheme.statusGreen)),
               const SizedBox(width: 8),
               Expanded(child: _buildStatusCard('Alert', filteredVehicles.where((v) => v.status == 'warning' || v.status == 'ALERT').length.toString(), AppTheme.statusAmber)),
               const SizedBox(width: 8),
@@ -558,9 +616,9 @@ class _OperatorDashboardScreenState extends State<OperatorDashboardScreen> {
     switch (status) {
       case 'emergency': return AppTheme.statusRed;
       case 'warning': case 'ALERT': return AppTheme.statusAmber;
-      case 'ACTIVE': case 'normal': return AppTheme.statusGreen;
+      case 'ACTIVE': case 'normal': case 'online': return AppTheme.statusGreen;
       case 'MAINTENANCE': return Colors.orange;
-      case 'OFFLINE': case 'INACTIVE': return AppTheme.textMuted;
+      case 'OFFLINE': case 'INACTIVE': case 'idle': return AppTheme.textMuted;
       default: return AppTheme.accentBlue;
     }
   }

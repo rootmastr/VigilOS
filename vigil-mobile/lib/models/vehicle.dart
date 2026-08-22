@@ -8,6 +8,7 @@ class Vehicle {
   final double speedLimit;
   final double lat;
   final double lng;
+  final int heading;
   final String status;
   final int passengers;
 
@@ -21,6 +22,7 @@ class Vehicle {
     required this.speedLimit,
     required this.lat,
     required this.lng,
+    this.heading = 0,
     required this.status,
     required this.passengers,
   });
@@ -36,8 +38,39 @@ class Vehicle {
       speedLimit: (json['speedLimit'] as num?)?.toDouble() ?? 50.0,
       lat: (json['lat'] as num?)?.toDouble() ?? -6.9666,
       lng: (json['lng'] as num?)?.toDouble() ?? 110.4196,
+      heading: (json['heading'] as num?)?.toInt() ?? 0,
       status: json['status'] ?? 'normal',
       passengers: (json['passengers'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  Vehicle copyWith({
+    String? id,
+    String? code,
+    String? name,
+    String? type,
+    String? driver,
+    double? speed,
+    double? speedLimit,
+    double? lat,
+    double? lng,
+    int? heading,
+    String? status,
+    int? passengers,
+  }) {
+    return Vehicle(
+      id: id ?? this.id,
+      code: code ?? this.code,
+      name: name ?? this.name,
+      type: type ?? this.type,
+      driver: driver ?? this.driver,
+      speed: speed ?? this.speed,
+      speedLimit: speedLimit ?? this.speedLimit,
+      lat: lat ?? this.lat,
+      lng: lng ?? this.lng,
+      heading: heading ?? this.heading,
+      status: status ?? this.status,
+      passengers: passengers ?? this.passengers,
     );
   }
 }

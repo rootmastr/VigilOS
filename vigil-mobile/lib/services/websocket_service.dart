@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../models/vehicle.dart';
 import '../models/incident.dart';
@@ -9,15 +10,27 @@ class WebSocketService {
   IO.Socket? socket;
 
   Function(List<Vehicle>)? onVehiclesUpdate;
+  Function(Vehicle)? onVehicleUpdated;
   Function(List<Officer>)? onOfficersUpdate;
   Function(Incident)? onEmergencyAlert;
   Function(Officer)? onOfficerStatusChanged;
+  Function(bool)? onConnectionChanged;
+
+  bool _isConnected = false;
+  bool get isConnected => _isConnected;
+  int _reconnectAttempts = 0;
+  static const int _maxReconnectAttempts = 10;
 
   void connect() {
     final token = AuthService.token;
     socket = IO.io(serverUrl, <String, dynamic>{
       'transports': ['websocket', 'polling'],
       'autoConnect': true,
+      'reconnection': true,
+      'reconnectionAttempts': _maxReconnectAttempts,
+      'reconnectionDelay': 1000,
+      'reconnectionDelayMax': 5000,
+      'timeout': 10000,
       'auth': {
         'token': token,
       },
@@ -25,6 +38,35 @@ class WebSocketService {
 
     socket?.onConnect((_) {
       print('[Flutter WebSocket] Connected to VigilOS Backend');
+      _isConnected = true;
+      _reconnectAttempts = 0;
+      onConnectionChanged?.call(true);
+    });
+
+    socket?.onDisconnect((_) {
+      print('[Flutter WebSocket] Disconnected from server');
+      _isConnected = false;
+      onConnectionChanged?.call(false);
+    });
+
+    socket?.onReconnect((_) {
+      print('[Flutter WebSocket] Reconnected');
+      _isConnected = true;
+      _reconnectAttempts = 0;
+      onConnectionChanged?.call(true);
+    });
+
+    socket?.onReconnectAttempt((attempt) {
+      _reconnectAttempts = attempt;
+      print('[Flutter WebSocket] Reconnect attempt $attempt/$_maxReconnectAttempts');
+    });
+
+    socket?.onReconnectError((_) {
+      print('[Flutter WebSocket] Reconnect error');
+    });
+
+    socket?.onReconnectFailed((_) {
+      print('[Flutter WebSocket] Reconnect failed after $_maxReconnectAttempts attempts');
     });
 
     socket?.on('initial_state', (data) {
@@ -41,7 +83,20 @@ class WebSocketService {
     });
 
     socket?.on('telemetry_update', (data) {
-      // Telemetry update received
+      if (data is Map) {
+        final vehicleId = data['vehicleId'];
+        if (vehicleId != null) {
+          final vehicle = Vehicle.fromJson(Map<String, dynamic>.from(data));
+          onVehicleUpdated?.call(vehicle);
+        }
+      }
+    });
+
+    socket?.on('vehicle_status_changed', (data) {
+      if (data is Map) {
+        final vehicle = Vehicle.fromJson(Map<String, dynamic>.from(data));
+        onVehicleUpdated?.call(vehicle);
+      }
     });
 
     socket?.on('emergency_alert', (data) {
@@ -57,10 +112,6 @@ class WebSocketService {
         onOfficerStatusChanged?.call(officer);
       }
     });
-
-    socket?.onDisconnect((_) {
-      print('[Flutter WebSocket] Disconnected from server');
-    });
   }
 
   void updateOfficerStatus(String officerId, String dutyStatus) {
@@ -72,5 +123,7 @@ class WebSocketService {
 
   void disconnect() {
     socket?.disconnect();
+    socket?.dispose();
+    _isConnected = false;
   }
 }
