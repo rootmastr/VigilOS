@@ -169,18 +169,16 @@ app.use('/api/v1', apiRouter);
 io.on('connection', (socket) => {
   console.log(`[Socket.io] Command Center Client connected: ${socket.id}`);
 
-  // Send initial state snapshot on connection — read from in-memory store (has live coordinates)
+  // Send initial state snapshot on connection — read from PostgreSQL (persistent)
   const emitInitialState = async () => {
     try {
-      const [drivers, officers, securityEvents, incidents] = await Promise.all([
+      const [vehicles, drivers, officers, securityEvents, incidents] = await Promise.all([
+        db.listVehicles({ take: 200 }),
         db.listDrivers({ take: 200 }),
         db.listOfficers({ take: 200 }),
         db.listSecurityEvents({ take: 200 }),
         db.listIncidents({ take: 200 }),
       ]);
-      // Use in-memory postgresDB for vehicles (has live telemetry coordinates)
-      // and deviceTokens (tokens generated via API are stored here)
-      const vehicles = postgresDB.getVehicles();
       const deviceTokens = postgresDB.getDeviceTokens();
       socket.emit('initial_state', {
         vehicles, drivers, officers, deviceTokens, securityEvents, incidents,
@@ -188,14 +186,13 @@ io.on('connection', (socket) => {
       });
     } catch (err) {
       console.error('[Socket.io] Failed to load initial state from DB:', err.message);
-      // Fallback to in-memory store
       socket.emit('initial_state', {
-        vehicles: postgresDB.getVehicles(),
-        drivers: postgresDB.getDrivers(),
-        officers: postgresDB.getOfficers(),
-        deviceTokens: postgresDB.getDeviceTokens(),
-        securityEvents: postgresDB.getSecurityEvents(),
-        incidents: postgresDB.getIncidents(),
+        vehicles: [],
+        drivers: [],
+        officers: [],
+        deviceTokens: [],
+        securityEvents: [],
+        incidents: [],
         timestamp: new Date().toISOString(),
       });
     }
