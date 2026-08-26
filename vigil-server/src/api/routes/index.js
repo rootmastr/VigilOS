@@ -82,7 +82,10 @@ router.use('/auth', authRoutes);
 // Auth first → then tenant resolution (needs req.user.tenantId) → guard → quota
 const protectedMiddleware = [authenticateToken, tenantResolution, superAdminBypass, tenantGuard, quotaMiddleware];
 
-router.use('/tenants', ...protectedMiddleware, tenantRoutes);
+// Tenant management routes: no tenantGuard (SUPER_ADMIN needs to create/manage tenants without tenant context)
+const tenantManageMiddleware = [authenticateToken, tenantResolution, superAdminBypass, quotaMiddleware];
+
+router.use('/tenants', ...tenantManageMiddleware, tenantRoutes);
 router.use('/billing', ...protectedMiddleware, billingRoutes);
 router.use('/fleet', ...protectedMiddleware, fleetRoutes);
 router.use('/incidents', ...protectedMiddleware, incidentRoutes);

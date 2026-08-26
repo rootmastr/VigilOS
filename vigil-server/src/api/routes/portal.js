@@ -50,6 +50,20 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
 });
 
 /**
+ * GET /portal/tenants
+ * List all tenants (SUPER_ADMIN only)
+ */
+router.get('/tenants', authenticateToken, requireRole('SUPER_ADMIN'), async (req, res) => {
+  try {
+    const tenants = await db.listTenants({ orderBy: { name: 'asc' } });
+    res.json({ success: true, data: tenants });
+  } catch (error) {
+    console.error('List portal tenants error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+/**
  * GET /portal/users
  * List users for tenant
  */
