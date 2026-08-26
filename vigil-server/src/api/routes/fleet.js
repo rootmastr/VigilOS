@@ -25,15 +25,20 @@ export function setMqttBroker(broker) {
  */
 router.get('/vehicles', authenticateToken, async (req, res) => {
   try {
-    // Read from in-memory store (has live telemetry coordinates)
-    // instead of Prisma (which may have stale/default coordinates)
     const tenantId = req.user.role === 'SUPER_ADMIN' ? (req.query.tenantId || undefined) : req.user.tenantId;
-    let vehicles = postgresDB.getVehicles(tenantId);
 
-    // Apply optional filters
-    const { status, type } = req.query;
-    if (status) vehicles = vehicles.filter(v => v.status === status);
-    if (type) vehicles = vehicles.filter(v => v.type === type);
+    const where = {};
+    if (tenantId) where.tenantId = tenantId;
+
+    const { status, type, skip = 0, take = 200 } = req.query;
+    if (status) where.status = status;
+    if (type) where.type = type;
+
+    const vehicles = await db.listVehicles({
+      skip: parseInt(skip),
+      take: parseInt(take),
+      where,
+    });
 
     res.json({
       success: true,
@@ -204,8 +209,7 @@ router.put('/vehicles/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TENAN
  */
 router.delete('/vehicles/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req, res) => {
   try {
-    // Check from in-memory store (source of truth for live data)
-    const vehicle = postgresDB.getVehicleById(req.params.id);
+    const vehicle = await db.getVehicleById(req.params.id);
     if (!vehicle) {
       return res.status(404).json({ success: false, error: 'Vehicle not found' });
     }
@@ -215,17 +219,15 @@ router.delete('/vehicles/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TE
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
 
-    // Soft delete in PostgreSQL (ignore error if not found in Prisma)
-    try {
-      await db.deleteVehicle(req.params.id);
-    } catch (_) {}
+    // Soft delete in PostgreSQL
+    await db.deleteVehicle(req.params.id);
 
     // Stop simulation if running
     if (mqttBroker?.stopDeviceTelemetry) {
       mqttBroker.stopDeviceTelemetry(vehicle.id);
     }
 
-    // Remove from in-memory store (match by id OR code, same as getVehicleById)
+    // Remove from in-memory store
     postgresDB.vehicles = postgresDB.vehicles.filter(v => v.id !== req.params.id && v.code !== req.params.id);
 
     // Broadcast via MQTT
@@ -421,8 +423,7 @@ router.put('/drivers/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT
  */
 router.delete('/drivers/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req, res) => {
   try {
-    // Check from in-memory store (source of truth for live data)
-    const driver = postgresDB.getDriverById(req.params.id);
+    const driver = await db.getDriverById(req.params.id);
     if (!driver) {
       return res.status(404).json({ success: false, error: 'Driver not found' });
     }
@@ -432,10 +433,8 @@ router.delete('/drivers/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TEN
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
 
-    // Soft delete in PostgreSQL (ignore error if not found in Prisma)
-    try {
-      await db.deleteDriver(req.params.id);
-    } catch (_) {}
+    // Soft delete in PostgreSQL
+    await db.deleteDriver(req.params.id);
 
     // Remove from in-memory store
     postgresDB.drivers = postgresDB.drivers.filter(d => d.id !== req.params.id);

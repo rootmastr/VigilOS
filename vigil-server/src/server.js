@@ -249,6 +249,15 @@ db.connect().then(async () => {
     console.error('[DB] Failed to sync vehicles:', err.message);
   }
 
+  // Load drivers from Prisma into in-memory store
+  try {
+    const drivers = await db.listDrivers({ take: 200 });
+    postgresDB.drivers = drivers;
+    console.log(`[DB] Synced ${drivers.length} drivers from PostgreSQL to in-memory store`);
+  } catch (err) {
+    console.error('[DB] Failed to sync drivers:', err.message);
+  }
+
   // Load device tokens from Prisma into in-memory store
   try {
     const tokens = await db.listDeviceTokens({ take: 500 });
@@ -265,6 +274,37 @@ db.connect().then(async () => {
     console.log(`[DB] Synced ${tokens.length} device tokens from PostgreSQL to in-memory store`);
   } catch (err) {
     console.error('[DB] Failed to sync device tokens:', err.message);
+  }
+
+  // Load users from Prisma into in-memory store (for legacy auth compatibility)
+  try {
+    const users = await db.prisma.user.findMany({ where: { deletedAt: null }, take: 200 });
+    postgresDB.users = users.map(u => ({
+      ...u,
+      password: u.passwordHash,
+    }));
+    console.log(`[DB] Synced ${users.length} users from PostgreSQL to in-memory store`);
+  } catch (err) {
+    console.error('[DB] Failed to sync users:', err.message);
+  }
+
+  // Load tenants from Prisma into in-memory store
+  try {
+    const tenants = await db.listTenants({ take: 100 });
+    postgresDB.tenants = tenants;
+    postgresDB.workspaces = tenants.map(t => ({ id: t.id, name: t.name, status: t.status, region: t.region }));
+    console.log(`[DB] Synced ${tenants.length} tenants from PostgreSQL to in-memory store`);
+  } catch (err) {
+    console.error('[DB] Failed to sync tenants:', err.message);
+  }
+
+  // Load roles from Prisma into in-memory store
+  try {
+    const roles = await db.prisma.role.findMany({ take: 50 });
+    postgresDB.roles = roles;
+    console.log(`[DB] Synced ${roles.length} roles from PostgreSQL to in-memory store`);
+  } catch (err) {
+    console.error('[DB] Failed to sync roles:', err.message);
   }
 
   // Start Ingestion Pipeline (reads from in-memory store)

@@ -7,79 +7,23 @@ import bcrypt from 'bcryptjs';
 
 class PostgresAdapter {
   constructor() {
-    // Multi-tenant workspaces
-    this.workspaces = [
-      { id: 'ws-semarang-01', name: 'Dishub Kota Semarang', status: 'ACTIVE', region: 'Jawa Tengah' }
-    ];
-
-    // Master vehicle registry — EMPTY (add real vehicles via API)
+    // All data loaded from PostgreSQL on startup (see server.js)
+    this.workspaces = [];
     this.vehicles = [];
-
-    // Drivers — EMPTY (add real drivers via API)
     this.drivers = [];
-
-    // Patrol Officers — EMPTY (add real officers via API)
     this.officers = [];
-
-    // Device Tokens — EMPTY (add real tokens via Fleet Admin)
     this.deviceTokens = [];
-
-    // Security Audit Log
     this.securityEvents = [];
-
-    // Incident audit logs
     this.incidents = [];
-
-    // Auth users (required for login)
-    this.users = [
-      { id: 'usr-01', name: 'Cmdr. Rahmat', email: 'admin@vigilos.id', password: bcrypt.hashSync('admin123', 10), role: 'SUPER_ADMIN', tenantId: 'ws-semarang-01', avatar: null, isMfaEnabled: false, status: 'ACTIVE', createdAt: '2024-01-15T08:00:00Z' },
-      { id: 'usr-02', name: 'Operator 04', email: 'operator@vigilos.id', password: bcrypt.hashSync('operator123', 10), role: 'COMMAND_CENTER_OPERATOR', tenantId: 'ws-semarang-01', avatar: null, isMfaEnabled: false, status: 'ACTIVE', createdAt: '2024-02-01T09:30:00Z' },
-      { id: 'usr-03', name: 'Officer Hendra', email: 'hendra@vigilos.id', password: bcrypt.hashSync('officer123', 10), role: 'PATROL_OFFICER', tenantId: 'ws-semarang-01', officerId: 'OFF-101', avatar: null, isMfaEnabled: false, status: 'ACTIVE', createdAt: '2024-02-10T10:00:00Z' },
-    ];
-
-    // Tenant
-    this.tenants = [
-      { id: 'ws-semarang-01', name: 'Dishub Kota Semarang', status: 'ACTIVE', region: 'Jawa Tengah', contactEmail: 'admin@semarang.go.id', phone: '+62 24-5555-0100', address: 'Jl. Pemuda 148, Semarang', createdAt: '2024-01-10T00:00:00Z', planTier: 'ENTERPRISE' },
-    ];
-
-    // RBAC roles
-    this.roles = [
-      { id: 'role-super-admin', name: 'SUPER_ADMIN', description: 'Internal VigilOS staff. Global access across all tenants.', isSystem: true },
-      { id: 'role-tenant-admin', name: 'TENANT_ADMIN', description: 'Client owner. Full access to billing, team management, and API settings.', isSystem: false },
-      { id: 'role-tenant-finance', name: 'TENANT_FINANCE', description: 'Read/write access restricted to invoices, billing methods, and usage quotas.', isSystem: false },
-      { id: 'role-tenant-dispatcher', name: 'TENANT_DISPATCHER', description: 'No portal access; automatic redirect to the Command Center.', isSystem: false },
-      { id: 'role-tenant-auditor', name: 'TENANT_AUDITOR', description: 'Read-only access to SLA documents, audit logs, and auto-generated compliance reports.', isSystem: false },
-      { id: 'role-command-center', name: 'COMMAND_CENTER_OPERATOR', description: 'Real-time fleet monitoring and incident response.', isSystem: false },
-      { id: 'role-patrol', name: 'PATROL_OFFICER', description: 'Field patrol officer with emergency response capabilities.', isSystem: false },
-    ];
-
-    // Role permissions mapping
-    this.rolePermissions = [
-      { roleId: 'role-super-admin', permissions: ['*'] },
-      { roleId: 'role-tenant-admin', permissions: ['team:manage', 'billing:manage', 'api_keys:manage', 'vehicles:read', 'vehicles:write', 'incidents:read', 'reports:read', 'sla:read', 'sla:write'] },
-      { roleId: 'role-tenant-finance', permissions: ['billing:read', 'billing:write', 'invoices:read', 'invoices:write', 'usage:read'] },
-      { roleId: 'role-tenant-dispatcher', permissions: ['vehicles:read', 'incidents:read', 'incidents:write'] },
-      { roleId: 'role-tenant-auditor', permissions: ['sla:read', 'audit_logs:read', 'reports:read', 'invoices:read'] },
-      { roleId: 'role-command-center', permissions: ['vehicles:read', 'incidents:read', 'incidents:write', 'officers:read', 'officers:write'] },
-      { roleId: 'role-patrol', permissions: ['incidents:read', 'incidents:write', 'vehicles:read'] },
-    ];
-
-    // Subscriptions — EMPTY
+    this.users = [];
+    this.tenants = [];
+    this.roles = [];
+    this.rolePermissions = [];
     this.subscriptions = [];
-
-    // Invoices — EMPTY
     this.invoices = [];
-
-    // API Keys — EMPTY
     this.apiKeys = [];
-
-    // Auth audit log
     this.authAuditLog = [];
-
-    // Refresh tokens
     this.refreshTokens = [];
-
-    // Pending invitations — EMPTY
     this.invitations = [];
   }
 
