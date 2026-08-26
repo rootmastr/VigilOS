@@ -1,33 +1,21 @@
 const PREFIX = 'vigilos_';
 
 class StorageService {
-  constructor() {
-    this.memoryCache = new Map();
-  }
-
   get(key, defaultValue = null) {
     const fullKey = PREFIX + key;
-    
-    // Check memory cache first
-    if (this.memoryCache.has(fullKey)) {
-      return this.memoryCache.get(fullKey);
-    }
 
     try {
       const item = localStorage.getItem(fullKey);
       if (item === null) return defaultValue;
-      
+
       const parsed = JSON.parse(item);
-      
+
       // Check if item has expired
       if (parsed.expiry && Date.now() > parsed.expiry) {
         this.remove(key);
         return defaultValue;
       }
-      
-      // Store in memory cache
-      this.memoryCache.set(fullKey, parsed.value);
-      
+
       return parsed.value;
     } catch (error) {
       console.error('Storage get error:', error);
@@ -37,16 +25,15 @@ class StorageService {
 
   set(key, value, ttl = null) {
     const fullKey = PREFIX + key;
-    
+
     let item = { value };
-    
+
     if (ttl) {
       item.expiry = Date.now() + ttl;
     }
-    
+
     try {
       localStorage.setItem(fullKey, JSON.stringify(item));
-      this.memoryCache.set(fullKey, value);
       return true;
     } catch (error) {
       console.error('Storage set error:', error);
@@ -56,10 +43,9 @@ class StorageService {
 
   remove(key) {
     const fullKey = PREFIX + key;
-    
+
     try {
       localStorage.removeItem(fullKey);
-      this.memoryCache.delete(fullKey);
       return true;
     } catch (error) {
       console.error('Storage remove error:', error);
@@ -69,10 +55,8 @@ class StorageService {
 
   clear() {
     try {
-      // Only clear items with our prefix
       const keys = Object.keys(localStorage).filter(k => k.startsWith(PREFIX));
       keys.forEach(key => localStorage.removeItem(key));
-      this.memoryCache.clear();
       return true;
     } catch (error) {
       console.error('Storage clear error:', error);
@@ -95,14 +79,8 @@ class StorageService {
     return this.keys().length;
   }
 
-  // Get item with fallback to memory
   getWithFallback(key, defaultValue = null) {
-    const value = this.get(key);
-    if (value !== null) return value;
-    
-    // Try memory cache
-    const fullKey = PREFIX + key;
-    return this.memoryCache.get(fullKey) || defaultValue;
+    return this.get(key, defaultValue);
   }
 
   // Batch operations

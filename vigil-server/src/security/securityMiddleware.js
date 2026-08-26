@@ -61,80 +61,8 @@ const PATTERNS = {
 const HTML_TAG = /<[^>]*>/g;
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// In-Memory Stores (used when Redis is unavailable)
+// Rate Limiting — Redis only (no in-memory fallback)
 // ═══════════════════════════════════════════════════════════════════════════════
-
-class SlidingWindowStore {
-  constructor() {
-    this.windows = new Map();
-    this.buckets = new Map();
-  }
-
-  check(key, limit, windowMs) {
-    const now = Date.now();
-    const windowStart = now - windowMs;
-
-    let bucket = this.buckets.get(key);
-    if (!bucket) {
-      bucket = [];
-      this.buckets.set(key, bucket);
-    }
-
-    // Evict expired entries
-    while (bucket.length > 0 && bucket[0] < windowStart) {
-      bucket.shift();
-    }
-
-    const count = bucket.length;
-    if (count < limit) {
-      bucket.push(now);
-      return {
-        allowed: true,
-        count: count + 1,
-        remaining: Math.max(0, limit - count - 1),
-        resetAt: new Date(now + windowMs).toISOString(),
-      };
-    }
-
-    const oldestInWindow = bucket[0];
-    const resetAt = new Date(oldestInWindow + windowMs);
-    return {
-      allowed: false,
-      count,
-      remaining: 0,
-      resetAt: resetAt.toISOString(),
-      retryAfterSec: Math.ceil((resetAt.getTime() - now) / 1000),
-    };
-  }
-
-  getBucket(key) {
-    return this.buckets.get(key) || [];
-  }
-
-  clear(key) {
-    this.buckets.delete(key);
-  }
-
-  clearExpired(windowMs) {
-    const now = Date.now();
-    for (const [key, bucket] of this.buckets) {
-      while (bucket.length > 0 && bucket[0] < now - windowMs) {
-        bucket.shift();
-      }
-      if (bucket.length === 0) this.buckets.delete(key);
-    }
-  }
-}
-
-const memStore = new SlidingWindowStore();
-
-// Token blacklist (in-memory fallback when Redis unavailable)
-const tokenBlacklist = new Set();
-
-// DDoS IP tracking
-const ipRequestCounts = new Map();
-const blockedIPs = new Map();
-const ipSuspiciousScores = new Map();
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 1. Rate Limiting Middleware (Sliding Window)
@@ -142,7 +70,7 @@ const ipSuspiciousScores = new Map();
 
 /**
  * Create a rate limiter for a specific endpoint type.
- * Uses Redis when available, falls back to in-memory sliding window.
+ * Uses Redis for sliding window rate limiting.
  */
 function createRateLimiter(type) {
   const { max, windowMs } = RATE_LIMITS[type] || RATE_LIMITS.api;
@@ -151,57 +79,51 @@ function createRateLimiter(type) {
     const identifier = getRateLimitKey(type, req);
     const key = `rl:${type}:${identifier}`;
 
-    let result;
-
-    if (redisClient.isAvailable) {
-      try {
-        const now = Date.now();
-        const windowStart = now - windowMs;
-
-        // Sliding window using sorted sets
-        const pipe = redisClient.client.pipeline();
-        pipe.zremrangebyscore(key, 0, windowStart);
-        pipe.zadd(key, now, `${now}-${crypto.randomBytes(4).toString('hex')}`);
-        pipe.zcard(key);
-        pipe.expire(key, Math.ceil(windowMs / 1000));
-        const [, , countResult] = await pipe.exec();
-
-        const count = countResult?.[1] ?? 0;
-        const remaining = Math.max(0, max - count);
-        const allowed = count <= max;
-        const resetAt = new Date(now + windowMs);
-
-        result = {
-          allowed,
-          count,
-          remaining,
-          resetAt: resetAt.toISOString(),
-          retryAfterSec: allowed ? 0 : Math.ceil(windowMs / 1000),
-        };
-      } catch {
-        result = memStore.check(key, max, windowMs);
-      }
-    } else {
-      result = memStore.check(key, max, windowMs);
+    if (!redisClient.isAvailable) {
+      res.set({
+        'X-RateLimit-Limit': String(max),
+        'X-RateLimit-Remaining': String(max),
+        'X-RateLimit-Reset': new Date(Date.now() + windowMs).toISOString(),
+      });
+      return next();
     }
 
-    // Attach rate limit headers
-    res.set({
-      'X-RateLimit-Limit': String(max),
-      'X-RateLimit-Remaining': String(result.remaining),
-      'X-RateLimit-Reset': result.resetAt || new Date(Date.now() + windowMs).toISOString(),
-    });
+    try {
+      const now = Date.now();
+      const windowStart = now - windowMs;
 
-    if (!result.allowed) {
-      res.set('Retry-After', String(result.retryAfterSec || Math.ceil(windowMs / 1000)));
-      return res.status(429).json({
-        success: false,
-        error: 'Too Many Requests',
-        message: `Rate limit exceeded for ${type}. Retry after ${result.retryAfterSec} seconds.`,
-        retryAfterSec: result.retryAfterSec,
-        limit: max,
-        remaining: 0,
+      const pipe = redisClient.client.pipeline();
+      pipe.zremrangebyscore(key, 0, windowStart);
+      pipe.zadd(key, now, `${now}-${crypto.randomBytes(4).toString('hex')}`);
+      pipe.zcard(key);
+      pipe.expire(key, Math.ceil(windowMs / 1000));
+      const [, , countResult] = await pipe.exec();
+
+      const count = countResult?.[1] ?? 0;
+      const remaining = Math.max(0, max - count);
+      const allowed = count <= max;
+      const resetAt = new Date(now + windowMs);
+
+      res.set({
+        'X-RateLimit-Limit': String(max),
+        'X-RateLimit-Remaining': String(remaining),
+        'X-RateLimit-Reset': resetAt.toISOString(),
       });
+
+      if (!allowed) {
+        const retryAfterSec = Math.ceil(windowMs / 1000);
+        res.set('Retry-After', String(retryAfterSec));
+        return res.status(429).json({
+          success: false,
+          error: 'Too Many Requests',
+          message: `Rate limit exceeded for ${type}. Retry after ${retryAfterSec} seconds.`,
+          retryAfterSec,
+          limit: max,
+          remaining: 0,
+        });
+      }
+    } catch {
+      // Redis error — fail open
     }
 
     next();
@@ -237,46 +159,43 @@ export function rateLimiter({ max = 100, windowMs = 60000, keyFn } = {}) {
     const identifier = keyFn ? keyFn(req) : (req.ip || 'unknown');
     const key = `rl:custom:${identifier}:${req.route?.path || req.path}`;
 
-    let result;
-
-    if (redisClient.isAvailable) {
-      try {
-        const now = Date.now();
-        const windowStart = now - windowMs;
-        const pipe = redisClient.client.pipeline();
-        pipe.zremrangebyscore(key, 0, windowStart);
-        pipe.zadd(key, now, `${now}-${crypto.randomBytes(4).toString('hex')}`);
-        pipe.zcard(key);
-        pipe.expire(key, Math.ceil(windowMs / 1000));
-        const [, , countResult] = await pipe.exec();
-        const count = countResult?.[1] ?? 0;
-
-        result = {
-          allowed: count <= max,
-          count,
-          remaining: Math.max(0, max - count),
-          retryAfterSec: count <= max ? 0 : Math.ceil(windowMs / 1000),
-        };
-      } catch {
-        result = memStore.check(key, max, windowMs);
-      }
-    } else {
-      result = memStore.check(key, max, windowMs);
+    if (!redisClient.isAvailable) {
+      res.set({
+        'X-RateLimit-Limit': String(max),
+        'X-RateLimit-Remaining': String(max),
+        'X-RateLimit-Reset': new Date(Date.now() + windowMs).toISOString(),
+      });
+      return next();
     }
 
-    res.set({
-      'X-RateLimit-Limit': String(max),
-      'X-RateLimit-Remaining': String(result.remaining),
-      'X-RateLimit-Reset': new Date(Date.now() + windowMs).toISOString(),
-    });
+    try {
+      const now = Date.now();
+      const windowStart = now - windowMs;
+      const pipe = redisClient.client.pipeline();
+      pipe.zremrangebyscore(key, 0, windowStart);
+      pipe.zadd(key, now, `${now}-${crypto.randomBytes(4).toString('hex')}`);
+      pipe.zcard(key);
+      pipe.expire(key, Math.ceil(windowMs / 1000));
+      const [, , countResult] = await pipe.exec();
+      const count = countResult?.[1] ?? 0;
 
-    if (!result.allowed) {
-      res.set('Retry-After', String(result.retryAfterSec || Math.ceil(windowMs / 1000)));
-      return res.status(429).json({
-        success: false,
-        error: 'Too Many Requests',
-        retryAfterSec: result.retryAfterSec,
+      res.set({
+        'X-RateLimit-Limit': String(max),
+        'X-RateLimit-Remaining': String(Math.max(0, max - count)),
+        'X-RateLimit-Reset': new Date(Date.now() + windowMs).toISOString(),
       });
+
+      if (count > max) {
+        const retryAfterSec = Math.ceil(windowMs / 1000);
+        res.set('Retry-After', String(retryAfterSec));
+        return res.status(429).json({
+          success: false,
+          error: 'Too Many Requests',
+          retryAfterSec,
+        });
+      }
+    } catch {
+      // Redis error — fail open
     }
 
     next();
@@ -526,10 +445,8 @@ export function verifyToken(token) {
  * Check if a token has been revoked (blacklisted).
  */
 async function isTokenRevoked(tokenId) {
-  if (redisClient.isAvailable) {
-    return await redisClient.exists(`bl:${tokenId}`);
-  }
-  return tokenBlacklist.has(tokenId);
+  if (!redisClient.isAvailable) return false;
+  return await redisClient.exists(`bl:${tokenId}`);
 }
 
 /**
@@ -537,14 +454,9 @@ async function isTokenRevoked(tokenId) {
  * TTL matches the token's remaining expiry.
  */
 export async function revokeToken(tokenId, expiresAt) {
-  if (redisClient.isAvailable) {
-    const ttl = Math.max(1, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000));
-    await redisClient.setex(`bl:${tokenId}`, ttl, '1');
-  } else {
-    tokenBlacklist.add(tokenId);
-    // Auto-cleanup after TTL (best effort in memory)
-    setTimeout(() => tokenBlacklist.delete(tokenId), Math.max(1, new Date(expiresAt).getTime() - Date.now()));
-  }
+  if (!redisClient.isAvailable) return;
+  const ttl = Math.max(1, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000));
+  await redisClient.setex(`bl:${tokenId}`, ttl, '1');
 }
 
 /**
@@ -950,27 +862,28 @@ export function auditLogger(req, res, next) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 8. DDoS Protection
+// 8. DDoS Protection (Redis-only, no in-memory fallback)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Increment suspicious score for an IP.
- * Blocks IP when threshold is reached.
+ * Increment suspicious score for an IP via Redis.
  */
-function incrementSuspiciousScore(ip, points = 1) {
-  const current = (ipSuspiciousScores.get(ip) || 0) + points;
-  ipSuspiciousScores.set(ip, current);
-
+async function incrementSuspiciousScore(ip, points = 1) {
+  if (!redisClient.isAvailable) return;
+  const key = `ddos:suspicious:${ip}`;
+  const current = await redisClient.incrby(key, points);
+  await redisClient.expire(key, DDoS.blockDurationSec);
   if (current >= DDoS.suspiciousScoreThreshold) {
-    blockIP(ip, DDoS.blockDurationSec);
+    await blockIP(ip, DDoS.blockDurationSec);
   }
 }
 
 /**
- * Block an IP address for a duration.
+ * Block an IP address for a duration via Redis.
  */
-function blockIP(ip, durationSec) {
-  blockedIPs.set(ip, Date.now() + durationSec * 1000);
+async function blockIP(ip, durationSec) {
+  if (!redisClient.isAvailable) return;
+  await redisClient.setex(`ddos:blocked:${ip}`, durationSec, '1');
   logSecurityAudit({
     action: 'IP_BLOCKED',
     resource: 'ddos_protection',
@@ -981,16 +894,11 @@ function blockIP(ip, durationSec) {
 }
 
 /**
- * Check if an IP is currently blocked.
+ * Check if an IP is currently blocked via Redis.
  */
-function isIPBlocked(ip) {
-  const blockExpiry = blockedIPs.get(ip);
-  if (!blockExpiry) return false;
-  if (Date.now() > blockExpiry) {
-    blockedIPs.delete(ip);
-    return false;
-  }
-  return true;
+async function isIPBlocked(ip) {
+  if (!redisClient.isAvailable) return false;
+  return await redisClient.exists(`ddos:blocked:${ip}`);
 }
 
 /**
@@ -1000,15 +908,9 @@ function analyzeSuspiciousPatterns(req) {
   const score = [];
   const ua = req.headers['user-agent'] || '';
 
-  // Missing or suspicious user agent
   if (!ua || ua.length < 10) score.push(1);
-
-  // Unusual HTTP method distribution (tracked externally in production)
-  // Excessively long query strings
   if (req.url && req.url.length > 1024) score.push(2);
 
-  // Rapid sequential requests from same IP (heuristic)
-  // Common attack paths
   const attackPaths = ['/wp-admin', '/phpmyadmin', '/.env', '/config', '/backup', '/admin.php'];
   if (attackPaths.some(p => req.path?.toLowerCase().includes(p))) score.push(3);
 
@@ -1018,16 +920,17 @@ function analyzeSuspiciousPatterns(req) {
 /**
  * Express middleware: DDoS protection layer.
  */
-export function ddosProtection(req, res, next) {
+export async function ddosProtection(req, res, next) {
   const ip = req.ip || req.socket?.remoteAddress || 'unknown';
 
-  // Skip DDoS protection for localhost in development
   if (process.env.NODE_ENV !== 'production' && (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1')) {
     return next();
   }
 
+  if (!redisClient.isAvailable) return next();
+
   // Check if IP is blocked
-  if (isIPBlocked(ip)) {
+  if (await isIPBlocked(ip)) {
     logSecurityAudit({
       action: 'DDOS_BLOCKED',
       resource: req.path,
@@ -1041,78 +944,51 @@ export function ddosProtection(req, res, next) {
   // Analyze suspicious patterns
   const suspiciousScore = analyzeSuspiciousPatterns(req);
   if (suspiciousScore > 0) {
-    incrementSuspiciousScore(ip, suspiciousScore);
+    incrementSuspiciousScore(ip, suspiciousScore).catch(() => {});
   }
 
-  // IP-based rate limiting
+  // IP-based rate limiting via Redis
   const now = Date.now();
   const windowStart = now - DDoS.ipWindowMs;
+  const key = `ddos:requests:${ip}`;
 
-  let ipBucket = ipRequestCounts.get(ip);
-  if (!ipBucket) {
-    ipBucket = [];
-    ipRequestCounts.set(ip, ipBucket);
-  }
+  try {
+    const pipe = redisClient.client.pipeline();
+    pipe.zremrangebyscore(key, 0, windowStart);
+    pipe.zadd(key, now, `${now}-${crypto.randomBytes(4).toString('hex')}`);
+    pipe.zcard(key);
+    pipe.expire(key, Math.ceil(DDoS.ipWindowMs / 1000));
+    const [, , countResult] = await pipe.exec();
+    const count = countResult?.[1] ?? 0;
 
-  // Evict old entries
-  while (ipBucket.length > 0 && ipBucket[0] < windowStart) {
-    ipBucket.shift();
-  }
+    if (count > DDoS.ipMaxRequests) {
+      await blockIP(ip, DDoS.blockDurationSec);
+      logSecurityAudit({
+        action: 'DDOS_RATE_EXCEEDED',
+        resource: req.path,
+        result: 'BLOCKED',
+        details: `${count} requests in ${DDoS.ipWindowMs / 1000}s window (max ${DDoS.ipMaxRequests})`,
+        ip,
+      });
+      return res.status(429).json({
+        success: false,
+        error: 'Too Many Requests',
+        message: 'Request rate exceeded. Temporary block in effect.',
+        retryAfterSec: DDoS.blockDurationSec,
+      });
+    }
 
-  ipBucket.push(now);
-
-  if (ipBucket.length > DDoS.ipMaxRequests) {
-    blockIP(ip, DDoS.blockDurationSec);
-    logSecurityAudit({
-      action: 'DDOS_RATE_EXCEEDED',
-      resource: req.path,
-      result: 'BLOCKED',
-      details: `${ipBucket.length} requests in ${DDoS.ipWindowMs / 1000}s window (max ${DDoS.ipMaxRequests})`,
+    req.ddosInfo = {
       ip,
-    });
-    return res.status(429).json({
-      success: false,
-      error: 'Too Many Requests',
-      message: 'Request rate exceeded. Temporary block in effect.',
-      retryAfterSec: DDoS.blockDurationSec,
-    });
+      requestsInWindow: count,
+      limit: DDoS.ipMaxRequests,
+    };
+  } catch {
+    // Redis error — fail open
   }
-
-  // Attach rate info for downstream use
-  req.ddosInfo = {
-    ip,
-    requestsInWindow: ipBucket.length,
-    limit: DDoS.ipMaxRequests,
-  };
 
   next();
 }
-
-// Periodic cleanup of expired DDoS tracking data
-setInterval(() => {
-  const now = Date.now();
-
-  // Clean expired IP buckets
-  for (const [ip, bucket] of ipRequestCounts) {
-    while (bucket.length > 0 && bucket[0] < now - DDoS.ipWindowMs) {
-      bucket.shift();
-    }
-    if (bucket.length === 0) ipRequestCounts.delete(ip);
-  }
-
-  // Clean expired blocks
-  for (const [ip, expiry] of blockedIPs) {
-    if (now > expiry) blockedIPs.delete(ip);
-  }
-
-  // Clean expired suspicious scores (decay after 30 min)
-  for (const [ip, score] of ipSuspiciousScores) {
-    if (score > 0) ipSuspiciousScores.set(ip, Math.max(0, score - 1));
-  }
-
-  // Clean expired rate limiter windows
-  memStore.clearExpired(15 * 60 * 1000);
-}, 60000);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 9. Body Size Limit Middleware

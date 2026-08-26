@@ -86,43 +86,53 @@ function decompressPayload(msg) {
   }
 }
 
-// ── Rate Limiter (per connection) ────────────────────────────────────────────
+// ── Rate Limiter (per connection) — Redis only ────────────────────────────────
 class ConnectionRateLimiter {
   constructor() {
     this.window = CONFIG.RATE_LIMIT_WINDOW_MS;
     this.max = CONFIG.RATE_LIMIT_MAX_MESSAGES;
   }
 
-  check(id) {
+  async check(id) {
+    if (!redisClient.isAvailable) return { allowed: true, count: 0, remaining: this.max };
     const key = `ws:ratelimit:${id}`;
     const now = Date.now();
-    let bucket = this._buckets?.get(id);
-    if (!bucket || now - bucket.start >= this.window) {
-      bucket = { start: now, count: 0 };
-      this._buckets?.set(id, bucket);
+    const windowStart = now - this.window;
+
+    try {
+      const pipe = redisClient.client.pipeline();
+      pipe.zremrangebyscore(key, 0, windowStart);
+      pipe.zadd(key, now, `${now}-${crypto.randomBytes(4).toString('hex')}`);
+      pipe.zcard(key);
+      pipe.expire(key, Math.ceil(this.window / 1000));
+      const [, , countResult] = await pipe.exec();
+      const count = countResult?.[1] ?? 0;
+      return { allowed: count <= this.max, count, remaining: Math.max(0, this.max - count) };
+    } catch {
+      return { allowed: true, count: 0, remaining: this.max };
     }
-    bucket.count++;
-    return { allowed: bucket.count <= this.max, count: bucket.count, remaining: Math.max(0, this.max - bucket.count) };
   }
 
-  reset(id) { this._buckets?.delete(id); }
-
-  get _buckets() { return this._rateBuckets || (this._rateBuckets = new Map()); }
+  async reset(id) {
+    if (!redisClient.isAvailable) return;
+    try { await redisClient.del(`ws:ratelimit:${id}`); } catch {}
+  }
 }
 
-// ── Message Deduplication ────────────────────────────────────────────────────
+// ── Message Deduplication — Redis only ────────────────────────────────────────
 class MessageDeduplicator {
-  constructor() { this.seen = new Map(); }
-
-  isDuplicate(messageId) {
+  async isDuplicate(messageId) {
     if (!messageId) return false;
-    const now = Date.now();
-    if (this.seen.has(messageId)) return true;
-    this.seen.set(messageId, now);
-    if (this.seen.size > 10_000) {
-      for (const [k, t] of this.seen) { if (now - t > CONFIG.DEDUP_TTL_MS) this.seen.delete(k); }
+    if (!redisClient.isAvailable) return false;
+    const key = `ws:dedup:${messageId}`;
+    try {
+      const exists = await redisClient.exists(key);
+      if (exists) return true;
+      await redisClient.setex(key, Math.ceil(CONFIG.DEDUP_TTL_MS / 1000), '1');
+      return false;
+    } catch {
+      return false;
     }
-    return false;
   }
 }
 
@@ -150,10 +160,6 @@ export class VigilWSServer {
     this.connectionsByTenant = new Map(); // tenantId → Set<ws>
     this.channelSubscribers = new Map(); // channelName → Set<ws>
     this.channelWildcardMatchers = [];   // [{pattern, regex, channel, subscribers: Set<ws>}]
-
-    // Message stores
-    this.messageQueues = new Map();     // clientId → message[]
-    this.messageHistory = new Map();    // channelName → message[]
 
     // Utilities
     this.rateLimiter = new ConnectionRateLimiter();
@@ -379,12 +385,12 @@ export class VigilWSServer {
     }
 
     // Deduplication
-    if (msg.id && this.deduplicator.isDuplicate(msg.id)) {
+    if (msg.id && await this.deduplicator.isDuplicate(msg.id)) {
       return; // silently ignore duplicate
     }
 
     // Rate limiting
-    const rateResult = this.rateLimiter.check(meta.connectionId);
+    const rateResult = await this.rateLimiter.check(meta.connectionId);
     if (!rateResult.allowed) {
       this._send(ws, {
         type: 'error',
@@ -548,7 +554,7 @@ export class VigilWSServer {
 
   async _broadcastToChannel(channel, msg) {
     // Dedup
-    if (msg.id && this.deduplicator.isDuplicate(msg.id)) return;
+    if (msg.id && await this.deduplicator.isDuplicate(msg.id)) return;
 
     const subscribers = this._getMatchingSubscribers(channel);
 
@@ -573,51 +579,15 @@ export class VigilWSServer {
   // ── Message Queue & Replay ──────────────────────────────────────────────
 
   queueMessage(clientId, channel, data, priority = 'telemetry') {
-    if (!this.messageQueues.has(clientId)) {
-      this.messageQueues.set(clientId, []);
-    }
-    const queue = this.messageQueues.get(clientId);
-    queue.push({
-      id: generateId(),
-      channel,
-      data,
-      priority,
-      priorityLevel: PRIORITY_LABELS.indexOf(priority) >= 0 ? PRIORITY_LABELS.indexOf(priority) : 2,
-      queuedAt: nowISO(),
-    });
-    // Cap queue size
-    if (queue.length > CONFIG.MAX_QUEUED_MESSAGES) {
-      queue.splice(0, queue.length - CONFIG.MAX_QUEUED_MESSAGES);
-    }
+    // No-op: in-memory message queuing removed
   }
 
   async _replayQueuedMessages(ws, meta) {
-    const queue = this.messageQueues.get(meta.userId);
-    if (!queue || queue.length === 0) return;
-
-    // Sort by priority (alerts first)
-    queue.sort((a, b) => (a.priorityLevel || 2) - (b.priorityLevel || 2));
-
-    for (const msg of queue) {
-      // Check channel permission
-      if (this._hasChannelPermission(msg.channel, meta.role)) {
-        this._send(ws, { ...msg, type: 'replayed', replayedAt: nowISO() });
-      }
-    }
-    this.messageQueues.delete(meta.userId);
-
-    console.log(`[WS] Replayed ${queue.length} queued messages for ${meta.connectionId}`);
+    // No-op: in-memory message queuing removed
   }
 
   _addToChannelHistory(channel, msg) {
-    if (!this.messageHistory.has(channel)) {
-      this.messageHistory.set(channel, []);
-    }
-    const hist = this.messageHistory.get(channel);
-    hist.push(msg);
-    if (hist.length > CONFIG.MESSAGE_REPLAY_LIMIT) {
-      hist.splice(0, hist.length - CONFIG.MESSAGE_REPLAY_LIMIT);
-    }
+    // No-op: in-memory message history removed
   }
 
   // ── Message Acknowledgment ──────────────────────────────────────────────
@@ -632,7 +602,7 @@ export class VigilWSServer {
   // ── Reconnection ────────────────────────────────────────────────────────
 
   async _handleReconnect(ws, meta, msg) {
-    const { reconnectToken, lastMessageId } = msg;
+    const { reconnectToken } = msg;
     if (!reconnectToken) {
       this._send(ws, { type: 'error', message: 'reconnectToken required' });
       return;
@@ -650,22 +620,6 @@ export class VigilWSServer {
         if (this._hasChannelPermission(ch, meta.role)) {
           this._addSubscription(ch, ws);
         }
-      }
-    }
-
-    // Replay missed messages (after lastMessageId)
-    if (lastMessageId) {
-      const missed = [];
-      for (const [channel, hist] of this.messageHistory) {
-        if (!payload.channels?.includes(channel)) continue;
-        const idx = hist.findIndex(m => m.id === lastMessageId);
-        if (idx >= 0) {
-          missed.push(...hist.slice(idx + 1));
-        }
-      }
-      missed.sort((a, b) => (a.priorityLevel || 2) - (b.priorityLevel || 2));
-      for (const m of missed.slice(0, CONFIG.MESSAGE_REPLAY_LIMIT)) {
-        this._send(ws, { ...m, type: 'replayed' });
       }
     }
 
@@ -708,7 +662,7 @@ export class VigilWSServer {
   // ── History ─────────────────────────────────────────────────────────────
 
   async _handleHistoryRequest(ws, meta, msg) {
-    const { channel, limit = CONFIG.MESSAGE_REPLAY_LIMIT } = msg;
+    const { channel } = msg;
     if (!channel) return;
 
     if (!this._hasChannelPermission(channel, meta.role)) {
@@ -716,8 +670,7 @@ export class VigilWSServer {
       return;
     }
 
-    const hist = (this.messageHistory.get(channel) || []).slice(-Math.min(limit, CONFIG.MESSAGE_REPLAY_LIMIT));
-    this._send(ws, { type: 'history', channel, messages: hist, timestamp: nowISO() });
+    this._send(ws, { type: 'history', channel, messages: [], timestamp: nowISO() });
   }
 
   // ── Metrics ─────────────────────────────────────────────────────────────

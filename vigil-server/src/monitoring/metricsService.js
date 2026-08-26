@@ -3,7 +3,7 @@
  *
  * Tracks request metrics, active connections, system resources, business KPIs,
  * cache ratios, and database query performance. Implements circuit breaker
- * pattern, alerting rules, and a 24-hour circular buffer for historical data.
+ * pattern and alerting rules.
  */
 
 import os from 'os';
@@ -11,10 +11,6 @@ import os from 'os';
 // ──────────────────────────────────────────────────────────────────────────────
 // Constants
 // ──────────────────────────────────────────────────────────────────────────────
-
-const HISTORY_RETENTION_MS = 24 * 60 * 60 * 1000; // 24 hours
-const HISTORY_BUCKET_MS = 60 * 1000;              // 1-minute aggregation
-const MAX_HISTORY_BUCKETS = Math.ceil(HISTORY_RETENTION_MS / HISTORY_BUCKET_MS);
 
 const CIRCUIT_BREAKER = {
   FAILURE_THRESHOLD: 5,
@@ -31,53 +27,6 @@ const ALERT_THRESHOLDS = {
   CACHE_HIT_RATIO_PERCENT: 50,
   WEBSOCKET_SPIKE_MULTIPLIER: 3,
 };
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Circular Buffer — Fixed-size ring buffer for historical metric data
-// ──────────────────────────────────────────────────────────────────────────────
-
-class CircularBuffer {
-  constructor(capacity) {
-    this.capacity = capacity;
-    this.buffer = new Array(capacity);
-    this.head = 0;
-    this.size = 0;
-  }
-
-  push(value) {
-    this.buffer[this.head] = value;
-    this.head = (this.head + 1) % this.capacity;
-    if (this.size < this.capacity) this.size++;
-  }
-
-  getAll() {
-    if (this.size === 0) return [];
-    if (this.size < this.capacity) {
-      return this.buffer.slice(0, this.size);
-    }
-    return [
-      ...this.buffer.slice(this.head),
-      ...this.buffer.slice(0, this.head),
-    ];
-  }
-
-  getLatest(count) {
-    const all = this.getAll();
-    return all.slice(-count);
-  }
-
-  getRange(startTime, endTime) {
-    return this.getAll().filter(
-      (entry) => entry.timestamp >= startTime && entry.timestamp <= endTime
-    );
-  }
-
-  clear() {
-    this.buffer = new Array(this.capacity);
-    this.head = 0;
-    this.size = 0;
-  }
-}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Circuit Breaker — Prevents cascade failures on external service calls
@@ -218,18 +167,6 @@ class MetricsService {
       active: [],
       history: [],
       lastChecked: null,
-    };
-
-    // ── Historical data (circular buffers) ─────────────────────────────────
-    this.history = {
-      requests: new CircularBuffer(MAX_HISTORY_BUCKETS),
-      responseTimes: new CircularBuffer(MAX_HISTORY_BUCKETS),
-      errors: new CircularBuffer(MAX_HISTORY_BUCKETS),
-      connections: new CircularBuffer(MAX_HISTORY_BUCKETS),
-      systemResources: new CircularBuffer(MAX_HISTORY_BUCKETS),
-      business: new CircularBuffer(MAX_HISTORY_BUCKETS),
-      cache: new CircularBuffer(MAX_HISTORY_BUCKETS),
-      database: new CircularBuffer(MAX_HISTORY_BUCKETS),
     };
 
     // ── Collection timer ───────────────────────────────────────────────────
@@ -610,31 +547,6 @@ class MetricsService {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // Historical Data
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  getMetricsHistory(metricName, durationMs = 3600000) {
-    const endTime = Date.now();
-    const startTime = endTime - durationMs;
-
-    const buffer = this.history[metricName];
-    if (!buffer) {
-      return { error: `Unknown metric: ${metricName}`, available: Object.keys(this.history) };
-    }
-
-    const data = buffer.getRange(startTime, endTime);
-
-    return {
-      metric: metricName,
-      startTime: new Date(startTime).toISOString(),
-      endTime: new Date(endTime).toISOString(),
-      durationMs,
-      dataPoints: data.length,
-      data,
-    };
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
   // Periodic Collection
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -681,72 +593,6 @@ class MetricsService {
       freeMemory: freeMem,
       totalMemory: totalMem,
     };
-
-    const avgResponseTime =
-      this.requestMetrics.responseTimes.length > 0
-        ? this.requestMetrics.responseTimes.reduce((a, b) => a + b, 0) /
-          this.requestMetrics.responseTimes.length
-        : 0;
-
-    const errorRate =
-      this.requestMetrics.total > 0
-        ? (this.requestMetrics.serverError / this.requestMetrics.total) * 100
-        : 0;
-
-    // Write snapshots to circular buffers
-    this.history.requests.push({
-      timestamp: now,
-      total: this.requestMetrics.total,
-      success: this.requestMetrics.success,
-      errors: this.requestMetrics.serverError,
-      throughput: this._calculateThroughput(),
-    });
-
-    this.history.responseTimes.push({
-      timestamp: now,
-      avg: parseFloat(avgResponseTime.toFixed(2)),
-      p95: parseFloat(this._percentile(this.requestMetrics.responseTimes, 95).toFixed(2)),
-      p99: parseFloat(this._percentile(this.requestMetrics.responseTimes, 99).toFixed(2)),
-    });
-
-    this.history.errors.push({
-      timestamp: now,
-      rate: parseFloat(errorRate.toFixed(2)),
-      total: this.requestMetrics.serverError,
-    });
-
-    this.history.connections.push({
-      timestamp: now,
-      websocket: this.connections.websocket.current,
-      mqtt: this.connections.mqtt.current,
-      database: this.connections.database.current,
-    });
-
-    this.history.systemResources.push({
-      timestamp: now,
-      memoryPercentUsed: parseFloat(memPercent.toFixed(1)),
-      heapUsedMB: this._bytesToMB(mem.heapUsed),
-      rssMB: this._bytesToMB(mem.rss),
-      loadAverage: [...this.systemResources.loadAverage],
-    });
-
-    this.history.business.push({
-      timestamp: now,
-      ...this.businessMetrics,
-    });
-
-    this.history.cache.push({
-      timestamp: now,
-      hitRatio: parseFloat(this.cacheMetrics.hitRatio.toFixed(2)),
-      totalGets: this.cacheMetrics.gets.hits + this.cacheMetrics.gets.misses,
-    });
-
-    this.history.database.push({
-      timestamp: now,
-      avgQueryTime: parseFloat(this.databaseMetrics.avgQueryTime.toFixed(2)),
-      totalQueries: this.databaseMetrics.queries.total,
-      slowQueries: this.databaseMetrics.slowQueries,
-    });
 
     this._evaluateAlerts();
   }
@@ -809,37 +655,6 @@ class MetricsService {
       } else {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(metrics));
-      }
-    };
-  }
-
-  createHistoryEndpointHandler() {
-    return (req, res) => {
-      const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-      const metric = url.searchParams.get('metric');
-      const duration = url.searchParams.get('duration');
-
-      if (!metric) {
-        const body = JSON.stringify({
-          error: 'metric query parameter required',
-          available: Object.keys(this.history),
-        });
-        if (typeof res.status === 'function') {
-          res.status(400).json({ error: 'metric query parameter required', available: Object.keys(this.history) });
-        } else {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(body);
-        }
-        return;
-      }
-
-      const durationMs = duration ? parseInt(duration, 10) : 3600000;
-      const history = this.getMetricsHistory(metric, durationMs);
-      if (typeof res.json === 'function') {
-        res.json(history);
-      } else {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(history));
       }
     };
   }
@@ -1040,7 +855,6 @@ class MetricsService {
       alerts: { active: 0, total: 0 },
     };
     this.alerts = { active: [], history: [], lastChecked: null };
-    Object.values(this.history).forEach((buf) => buf.clear());
   }
 }
 
@@ -1050,4 +864,4 @@ class MetricsService {
 
 const metricsService = new MetricsService();
 export default metricsService;
-export { MetricsService, CircularBuffer, CircuitBreaker };
+export { MetricsService, CircuitBreaker };
