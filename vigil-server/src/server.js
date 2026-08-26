@@ -38,11 +38,23 @@ const corsOrigin = corsOriginEnv
   : true;
 
 const isDev = process.env.NODE_ENV !== 'production';
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (corsOrigin === true) return true;
+  if (corsOrigin.includes(origin)) return true;
+  try {
+    const url = new URL(origin);
+    if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return true;
+  } catch {}
+  return false;
+}
+
 app.use(cors({
   origin: isDev
     ? true
     : (origin, callback) => {
-        if (!origin || corsOrigin.includes(origin)) {
+        if (isAllowedOrigin(origin)) {
           callback(null, true);
         } else {
           callback(new Error('Not allowed by CORS'));
@@ -55,7 +67,15 @@ app.use(cors({
 
 // Handle OPTIONS preflight explicitly before any security middleware
 app.options('*', cors({
-  origin: isDev ? true : corsOrigin,
+  origin: isDev
+    ? true
+    : (origin, callback) => {
+        if (isAllowedOrigin(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
   credentials: true,
 }));
 
