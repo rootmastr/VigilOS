@@ -122,7 +122,7 @@ NODE_ENV=production
 LOG_LEVEL=info
 
 # CORS
-CORS_ORIGIN=http://${SERVER_IP}:8181,http://localhost:8181
+CORS_ORIGIN=http://${SERVER_IP}:8181,http://localhost:8181,http://localhost:52604,http://localhost:5173
 EOF
     log ".env created with generated secrets"
 }
