@@ -11,6 +11,7 @@ class Vehicle {
   final int heading;
   final String status;
   final int passengers;
+  final String tenantId;
 
   Vehicle({
     required this.id,
@@ -25,6 +26,7 @@ class Vehicle {
     this.heading = 0,
     required this.status,
     required this.passengers,
+    this.tenantId = '',
   });
 
   factory Vehicle.fromJson(Map<String, dynamic> json) {
@@ -41,6 +43,7 @@ class Vehicle {
       heading: (json['heading'] as num?)?.toInt() ?? 0,
       status: json['status'] ?? 'normal',
       passengers: (json['passengers'] as num?)?.toInt() ?? 0,
+      tenantId: json['tenantId'] ?? '',
     );
   }
 
@@ -57,6 +60,7 @@ class Vehicle {
     int? heading,
     String? status,
     int? passengers,
+    String? tenantId,
   }) {
     return Vehicle(
       id: id ?? this.id,
@@ -71,6 +75,7 @@ class Vehicle {
       heading: heading ?? this.heading,
       status: status ?? this.status,
       passengers: passengers ?? this.passengers,
+      tenantId: tenantId ?? this.tenantId,
     );
   }
 }

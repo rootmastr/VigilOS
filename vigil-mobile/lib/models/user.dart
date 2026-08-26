@@ -23,7 +23,7 @@ class User {
       name: json['name'] ?? '',
       email: json['email'] ?? '',
       role: json['role'] ?? 'PUBLIC_USER',
-      tenantId: json['tenantId'] ?? 'ws-semarang-01',
+      tenantId: json['tenantId'] ?? '',
       officerId: json['officerId'],
       avatar: json['avatar'],
     );

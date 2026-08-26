@@ -88,11 +88,11 @@ class _OperatorDashboardScreenState extends State<OperatorDashboardScreen> {
       if (mounted) {
         setState(() {
           vehicles = v;
-          // Extract unique tenants from vehicles
-          tenants = v.map((v) => v.id.split('-').first).toSet().toList()..sort();
+          // Extract unique tenants from vehicles using tenantId field
+          tenants = v.map((v) => v.tenantId).where((t) => t.isNotEmpty).toSet().toList()..sort();
           // Also try to get tenantId from user
           final userTenant = AuthService.currentUser?.tenantId;
-          if (userTenant != null && !tenants.contains(userTenant)) {
+          if (userTenant != null && userTenant.isNotEmpty && !tenants.contains(userTenant)) {
             tenants.insert(0, userTenant);
           }
           selectedTenant = userTenant ?? (tenants.isNotEmpty ? tenants.first : null);
@@ -111,11 +111,10 @@ class _OperatorDashboardScreenState extends State<OperatorDashboardScreen> {
       filteredVehicles = List.from(vehicles);
     } else {
       filteredVehicles = vehicles.where((v) =>
-        v.id.startsWith(selectedTenant!) ||
-        v.name.toLowerCase().contains(selectedTenant!.toLowerCase())
+        v.tenantId == selectedTenant
       ).toList();
     }
-    // If no match from ID prefix, show all
+    // If no match, show all
     if (filteredVehicles.isEmpty && selectedTenant != null) {
       filteredVehicles = List.from(vehicles);
     }

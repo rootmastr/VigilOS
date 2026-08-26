@@ -137,7 +137,8 @@ class PostgresAdapter {
     return safeUser;
   }
 
-  getVehicles(tenantId = 'ws-semarang-01') {
+  getVehicles(tenantId) {
+    if (!tenantId) return [...this.vehicles];
     return this.vehicles.filter(v => v.tenantId === tenantId);
   }
 

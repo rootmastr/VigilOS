@@ -27,7 +27,8 @@ router.get('/vehicles', authenticateToken, async (req, res) => {
   try {
     // Read from in-memory store (has live telemetry coordinates)
     // instead of Prisma (which may have stale/default coordinates)
-    let vehicles = postgresDB.getVehicles();
+    const tenantId = req.user.role === 'SUPER_ADMIN' ? (req.query.tenantId || undefined) : req.user.tenantId;
+    let vehicles = postgresDB.getVehicles(tenantId);
 
     // Apply optional filters
     const { status, type } = req.query;
