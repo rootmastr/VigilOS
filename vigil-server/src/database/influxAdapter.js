@@ -1,56 +1,61 @@
 /**
- * InfluxDB Time-Series Data Layer Adapter
- * High-frequency telemetry logging for speed evaluation, route playback, and historical analytics.
+ * Telemetry Data Layer — Prisma-backed (no in-memory storage).
+ * Writes telemetry points to PostgreSQL and queries historical data.
  */
 
+import { db } from '../services/databaseService.js';
+
 class InfluxAdapter {
-  constructor() {
-    this.telemetryLogs = [];
-    this.maxMemoryLogs = 10000; // Cap log memory window
-  }
-
   /**
-   * Record telemetry point into InfluxDB bucket `fleet_telemetry`
+   * Record telemetry point into PostgreSQL telemetry table.
    */
-  writePoint({ vehicleId, lat, lng, speed, heading, passengers, heartbeatRateSec, anomalyDetected }) {
-    const point = {
-      timestamp: new Date().toISOString(),
-      measurement: 'vehicle_telemetry',
-      tags: {
-        vehicleId,
-        anomalyDetected: anomalyDetected ? 'true' : 'false'
-      },
-      fields: {
-        lat: Number(lat),
-        lng: Number(lng),
-        speed: Number(speed),
-        heading: Number(heading),
-        passengers: Number(passengers),
-        heartbeatRateSec: Number(heartbeatRateSec || 10)
-      }
-    };
-
-    this.telemetryLogs.push(point);
-    if (this.telemetryLogs.length > this.maxMemoryLogs) {
-      this.telemetryLogs.shift();
+  async writePoint({ vehicleId, lat, lng, speed, heading, passengers, heartbeatRateSec, anomalyDetected }) {
+    try {
+      return await db.prisma.telemetry.create({
+        data: {
+          vehicleId,
+          lat: Number(lat),
+          lng: Number(lng),
+          speed: Number(speed),
+          heading: Number(heading),
+          passengers: Number(passengers || 0),
+          heartbeatRateSec: Number(heartbeatRateSec || 10),
+          anomalyDetected: !!anomalyDetected,
+        },
+      });
+    } catch {
+      return null;
     }
-    return point;
   }
 
   /**
-   * Query historical telemetry for a specific vehicle within a time range
+   * Query historical telemetry for a specific vehicle.
    */
-  queryVehicleHistory(vehicleId, limit = 100) {
-    return this.telemetryLogs
-      .filter(p => p.tags.vehicleId === vehicleId)
-      .slice(-limit);
+  async queryVehicleHistory(vehicleId, limit = 100) {
+    try {
+      return await db.prisma.telemetry.findMany({
+        where: { vehicleId },
+        orderBy: { timestamp: 'desc' },
+        take: limit,
+      });
+    } catch {
+      return [];
+    }
   }
 
   /**
-   * Query speed anomalies aggregate across fleet
+   * Query speed anomalies across fleet.
    */
-  querySpeedAnomalies() {
-    return this.telemetryLogs.filter(p => p.tags.anomalyDetected === 'true');
+  async querySpeedAnomalies() {
+    try {
+      return await db.prisma.telemetry.findMany({
+        where: { anomalyDetected: true },
+        orderBy: { timestamp: 'desc' },
+        take: 200,
+      });
+    } catch {
+      return [];
+    }
   }
 }
 

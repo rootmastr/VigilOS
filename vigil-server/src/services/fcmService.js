@@ -2,11 +2,13 @@
  * External Notification Gateway & FCM Dispatcher
  * Integrates with Firebase Cloud Messaging (FCM/APNS) for patrol officer mobile apps
  * and sends emergency webhooks to Smart City Police & Dispatch Services.
+ * Dispatch logs are persisted to PostgreSQL via AuditLog table.
  */
+
+import { db } from '../services/databaseService.js';
 
 class FCMNotificationService {
   constructor() {
-    this.dispatchLogs = [];
     this.externalWebhooks = [
       { id: 'wh-police-01', name: 'Metro Police Emergency Dispatch', url: 'https://emergency.smartcity.gov/api/v1/incidents', active: true },
       { id: 'wh-trans-01', name: 'Municipal Transport Command Center', url: 'https://transport.smartcity.gov/webhooks/panic', active: true }
@@ -20,7 +22,7 @@ class FCMNotificationService {
     const payload = {
       messageId: `FCM-${Date.now()}`,
       notification: {
-        title: `🚨 EMERGENCY PANIC ALERT: ${incident.vehicleCode}`,
+        title: `EMERGENCY PANIC ALERT: ${incident.vehicleCode}`,
         body: `Vehicle ${incident.vehicleCode} reported panic trigger at (${incident.location.lat.toFixed(4)}, ${incident.location.lng.toFixed(4)}). Intercept immediately.`,
         sound: 'alarm_high_priority.wav',
         priority: 'high'
@@ -36,13 +38,19 @@ class FCMNotificationService {
       recipientCount: nearbyUnits.length || 3
     };
 
-    this.dispatchLogs.push({
-      timestamp: new Date().toISOString(),
-      type: 'FCM_PUSH',
-      incidentId: incident.id,
-      recipients: nearbyUnits.map(u => u.name || u.id),
-      payload
-    });
+    // Persist dispatch log to PostgreSQL
+    try {
+      await db.createAuditLog({
+        action: 'FCM_PUSH',
+        tenantId: incident.tenantId || 'ws-semarang-01',
+        resource: 'notification',
+        details: {
+          incidentId: incident.id,
+          recipients: nearbyUnits.map(u => u.name || u.id),
+          payload,
+        },
+      });
+    } catch {}
 
     console.log(`[FCM Gateway] Pushed high-priority alert for Incident ${incident.id} to ${payload.recipientCount} security officers.`);
 
@@ -64,19 +72,33 @@ class FCMNotificationService {
       timestamp: new Date().toISOString()
     }));
 
-    this.dispatchLogs.push({
-      timestamp: new Date().toISOString(),
-      type: 'MUNICIPAL_WEBHOOK',
-      incidentId: incident.id,
-      results: webhookResults
-    });
+    // Persist webhook dispatch log to PostgreSQL
+    try {
+      await db.createAuditLog({
+        action: 'MUNICIPAL_WEBHOOK',
+        tenantId: incident.tenantId || 'ws-semarang-01',
+        resource: 'notification',
+        details: {
+          incidentId: incident.id,
+          results: webhookResults,
+        },
+      });
+    } catch {}
 
     console.log(`[Webhook Service] Dispatched emergency payload to ${webhookResults.length} external city authority endpoints.`);
     return webhookResults;
   }
 
-  getDispatchLogs() {
-    return this.dispatchLogs;
+  async getDispatchLogs(tenantId = 'ws-semarang-01', limit = 100) {
+    try {
+      return await db.prisma.auditLog.findMany({
+        where: { tenantId, action: { in: ['FCM_PUSH', 'MUNICIPAL_WEBHOOK'] } },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      });
+    } catch {
+      return [];
+    }
   }
 }
 

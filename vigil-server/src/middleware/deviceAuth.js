@@ -15,8 +15,8 @@ export async function validateDeviceToken(req, res, next, onSecurityEvent = null
   const clientIP = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
   // Helper to record a security event and, if provided, push it to live command center clients
-  const recordSecurityEvent = (payload) => {
-    const event = postgresDB.logSecurityEvent(payload);
+  const recordSecurityEvent = async (payload) => {
+    const event = await postgresDB.logSecurityEvent(payload);
     if (onSecurityEvent) onSecurityEvent(event);
     return event;
   };
@@ -45,7 +45,7 @@ export async function validateDeviceToken(req, res, next, onSecurityEvent = null
 
   // ── Step 2: Postgres fallback on cache miss ────────────────────────────────
   if (!tokenRecord) {
-    tokenRecord = postgresDB.getTokenByValue(tokenString);
+    tokenRecord = await postgresDB.getTokenByValue(tokenString);
     // If found in Postgres and valid, back-fill the cache for next requests
     if (tokenRecord && tokenRecord.status === 'ACTIVE') {
       await cacheToken(tokenRecord);
@@ -117,7 +117,7 @@ export async function validateDeviceToken(req, res, next, onSecurityEvent = null
   // Valid token: update lastUsedAt timestamp & attach metadata to request
   // Only update the Postgres record on cache miss (avoids redundant DB writes)
   if (!cacheHit) {
-    const dbRecord = postgresDB.getTokenByValue(tokenString);
+    const dbRecord = await postgresDB.getTokenByValue(tokenString);
     if (dbRecord) dbRecord.lastUsedAt = new Date().toISOString();
   }
 

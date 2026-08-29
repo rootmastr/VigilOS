@@ -12,8 +12,8 @@ export function setMqttBroker(broker) {
   mqttBroker = broker;
 }
 
-router.get('/', authenticateToken, (req, res) => {
-  const tokens = postgresDB.getDeviceTokens();
+router.get('/', authenticateToken, async (req, res) => {
+  const tokens = await postgresDB.getDeviceTokens();
   res.json({ success: true, count: tokens.length, data: tokens });
 });
 
@@ -23,7 +23,7 @@ router.post('/generate', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_A
     return res.status(400).json({ success: false, error: 'deviceId is required to bind token' });
   }
   const tenantId = req.user.tenantId || 'ws-semarang-01';
-  const newToken = postgresDB.generateDeviceToken(
+  const newToken = await postgresDB.generateDeviceToken(
     deviceId,
     tenantId,
     expiryDays ? Math.max(1, Number(expiryDays)) : null
@@ -49,12 +49,12 @@ router.post('/generate', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_A
 
 router.post('/:id/revoke', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req, res) => {
   // Revoke by token id OR deviceId
-  let revoked = postgresDB.revokeDeviceToken(req.params.id);
+  let revoked = await postgresDB.revokeDeviceToken(req.params.id);
   if (!revoked) {
     // Try revoking by deviceId
-    const tokens = postgresDB.getDeviceTokens().filter(t => t.deviceId === req.params.id && t.status === 'ACTIVE');
+    const tokens = (await postgresDB.getDeviceTokens()).filter(t => t.deviceId === req.params.id && t.status === 'ACTIVE');
     for (const t of tokens) {
-      revoked = postgresDB.revokeDeviceToken(t.id);
+      revoked = await postgresDB.revokeDeviceToken(t.id);
       if (revoked) await invalidateToken(revoked.token);
     }
   } else {
@@ -78,14 +78,14 @@ router.post('/:id/revoke', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT
 });
 
 router.delete('/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req, res) => {
-  const token = postgresDB.getDeviceTokens().find(t => t.id === req.params.id);
+  const token = (await postgresDB.getDeviceTokens()).find(t => t.id === req.params.id);
   if (!token) {
     return res.status(404).json({ success: false, error: 'Token not found' });
   }
   if (mqttBroker?.stopDeviceTelemetry) {
     mqttBroker.stopDeviceTelemetry(token.deviceId);
   }
-  postgresDB.deleteDeviceToken(req.params.id);
+  await postgresDB.deleteDeviceToken(req.params.id);
   await invalidateToken(token.token);
   try {
     await db.deleteDeviceToken(req.params.id);
@@ -97,8 +97,8 @@ router.delete('/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_ADMI
 
 router.post('/:id/rotate', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req, res) => {
   const { deviceId } = req.body;
-  const existingToken = postgresDB.getTokenByValue(req.params.id)
-    || postgresDB.getDeviceTokens().find(t => t.id === req.params.id);
+  const existingToken = await postgresDB.getTokenByValue(req.params.id)
+    || (await postgresDB.getDeviceTokens()).find(t => t.id === req.params.id);
   const targetDevice = deviceId || existingToken?.deviceId;
 
   if (!targetDevice) {
@@ -106,7 +106,7 @@ router.post('/:id/rotate', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT
   }
 
   const tenantId = req.user.tenantId || 'ws-semarang-01';
-  const oldTokens = postgresDB.getDeviceTokens().filter(t => t.deviceId === targetDevice && t.status === 'ACTIVE');
+  const oldTokens = (await postgresDB.getDeviceTokens()).filter(t => t.deviceId === targetDevice && t.status === 'ACTIVE');
   for (const t of oldTokens) {
     await invalidateToken(t.token);
     try {
@@ -116,7 +116,7 @@ router.post('/:id/rotate', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT
     }
   }
 
-  const newToken = postgresDB.rotateDeviceToken(targetDevice, tenantId);
+  const newToken = await postgresDB.rotateDeviceToken(targetDevice, tenantId);
   try {
     await db.createDeviceToken({
       id: newToken.id,
@@ -133,8 +133,8 @@ router.post('/:id/rotate', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT
   res.json({ success: true, data: newToken });
 });
 
-router.get('/security-events', authenticateToken, (req, res) => {
-  const events = postgresDB.getSecurityEvents();
+router.get('/security-events', authenticateToken, async (req, res) => {
+  const events = await postgresDB.getSecurityEvents();
   res.json({ success: true, count: events.length, data: events });
 });
 

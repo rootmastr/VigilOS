@@ -47,7 +47,7 @@ const LOGIN_RATE_WINDOW = 300; // 5 minutes lockout window
  * Subsequent token lookups hit Redis (sub-ms) instead of the DB.
  */
 export async function cacheAllActiveTokens() {
-  const tokens = postgresDB.getDeviceTokens();
+  const tokens = await postgresDB.getDeviceTokens();
   const activeTokens = tokens.filter(t => t.status === 'ACTIVE');
   let seeded = 0;
 

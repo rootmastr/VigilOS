@@ -179,7 +179,7 @@ io.on('connection', (socket) => {
         db.listSecurityEvents({ take: 200 }),
         db.listIncidents({ take: 200 }),
       ]);
-      const deviceTokens = postgresDB.getDeviceTokens();
+      const deviceTokens = await postgresDB.getDeviceTokens();
       socket.emit('initial_state', {
         vehicles, drivers, officers, deviceTokens, securityEvents, incidents,
         timestamp: new Date().toISOString(),
@@ -200,23 +200,24 @@ io.on('connection', (socket) => {
   emitInitialState();
 
   // Client-triggered actions
-  socket.on('acknowledge_incident', (data) => {
-    const updated = postgresDB.acknowledgeIncident(data.incidentId, data.operatorId);
+  socket.on('acknowledge_incident', async (data) => {
+    const updated = await postgresDB.acknowledgeIncident(data.incidentId, data.operatorId);
     if (updated) {
       io.emit('incident_acknowledged', updated);
     }
   });
 
-  socket.on('resolve_incident', (data) => {
-    const updated = postgresDB.resolveIncident(data.incidentId, data.operatorId, data.fieldReport);
+  socket.on('resolve_incident', async (data) => {
+    const updated = await postgresDB.resolveIncident(data.incidentId, data.operatorId, data.fieldReport);
     if (updated) {
       io.emit('incident_resolved', updated);
-      io.emit('vehicle_status_changed', postgresDB.getVehicleById(updated.vehicleId));
+      const vehicle = await postgresDB.getVehicleById(updated.vehicleId);
+      io.emit('vehicle_status_changed', vehicle);
     }
   });
 
-  socket.on('update_officer_status', (data) => {
-    const updated = postgresDB.updateOfficerDutyStatus(data.officerId, data.dutyStatus);
+  socket.on('update_officer_status', async (data) => {
+    const updated = await postgresDB.updateOfficerDutyStatus(data.officerId, data.dutyStatus);
     if (updated) {
       io.emit('officer_status_changed', updated);
     }
@@ -235,76 +236,9 @@ io.on('connection', (socket) => {
 // START SERVER
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// Initialize Prisma database connection, then sync to in-memory store and start pipeline
+// Initialize Prisma database connection and start pipeline
 db.connect().then(async () => {
-  // Load vehicles from Prisma into in-memory store for MQTT simulator
-  try {
-    const vehicles = await db.listVehicles({ take: 200 });
-    postgresDB.vehicles = vehicles;
-    console.log(`[DB] Synced ${vehicles.length} vehicles from PostgreSQL to in-memory store`);
-  } catch (err) {
-    console.error('[DB] Failed to sync vehicles:', err.message);
-  }
-
-  // Load drivers from Prisma into in-memory store
-  try {
-    const drivers = await db.listDrivers({ take: 200 });
-    postgresDB.drivers = drivers;
-    console.log(`[DB] Synced ${drivers.length} drivers from PostgreSQL to in-memory store`);
-  } catch (err) {
-    console.error('[DB] Failed to sync drivers:', err.message);
-  }
-
-  // Load device tokens from Prisma into in-memory store
-  try {
-    const tokens = await db.listDeviceTokens({ take: 500 });
-    postgresDB.deviceTokens = tokens.map(t => ({
-      id: t.id,
-      token: t.tokenHash,
-      deviceId: t.deviceId,
-      tenantId: t.tenantId,
-      status: t.status,
-      createdAt: t.createdAt?.toISOString?.() || t.createdAt,
-      expiresAt: t.expiresAt?.toISOString?.() || t.expiresAt,
-      lastUsedAt: t.lastUsedAt?.toISOString?.() || t.lastUsedAt,
-    }));
-    console.log(`[DB] Synced ${tokens.length} device tokens from PostgreSQL to in-memory store`);
-  } catch (err) {
-    console.error('[DB] Failed to sync device tokens:', err.message);
-  }
-
-  // Load users from Prisma into in-memory store (for legacy auth compatibility)
-  try {
-    const users = await db.prisma.user.findMany({ where: { deletedAt: null }, take: 200 });
-    postgresDB.users = users.map(u => ({
-      ...u,
-      password: u.passwordHash,
-    }));
-    console.log(`[DB] Synced ${users.length} users from PostgreSQL to in-memory store`);
-  } catch (err) {
-    console.error('[DB] Failed to sync users:', err.message);
-  }
-
-  // Load tenants from Prisma into in-memory store
-  try {
-    const tenants = await db.listTenants({ take: 100 });
-    postgresDB.tenants = tenants;
-    postgresDB.workspaces = tenants.map(t => ({ id: t.id, name: t.name, status: t.status, region: t.region }));
-    console.log(`[DB] Synced ${tenants.length} tenants from PostgreSQL to in-memory store`);
-  } catch (err) {
-    console.error('[DB] Failed to sync tenants:', err.message);
-  }
-
-  // Load roles from Prisma into in-memory store
-  try {
-    const roles = await db.prisma.role.findMany({ take: 50 });
-    postgresDB.roles = roles;
-    console.log(`[DB] Synced ${roles.length} roles from PostgreSQL to in-memory store`);
-  } catch (err) {
-    console.error('[DB] Failed to sync roles:', err.message);
-  }
-
-  // Start Ingestion Pipeline (reads from in-memory store)
+  // Start Ingestion Pipeline
   mqttBroker.startIngestionPipeline();
 
   // Redis Startup Sequence
@@ -316,12 +250,13 @@ db.connect().then(async () => {
       try {
         const onlineIds = await redisClient.scanKeys('device:presence:*');
         const onlineSet = new Set(onlineIds.map(k => k.replace('device:presence:', '')));
-        for (const v of postgresDB.vehicles) {
+        const vehicles = await postgresDB.getVehicles();
+        for (const v of vehicles) {
           const wasOnline = v.status === 'online';
           const isNowOnline = onlineSet.has(v.id);
           if (wasOnline && !isNowOnline) {
-            v.status = 'idle';
-            socketBroadcast('vehicle_status_changed', v);
+            await postgresDB.updateVehicleStatus(v.id, 'idle', v.heartBeatIntervalSec || 10);
+            socketBroadcast('vehicle_status_changed', { ...v, status: 'idle' });
           }
         }
       } catch (_) {}

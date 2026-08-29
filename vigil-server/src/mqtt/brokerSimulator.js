@@ -8,6 +8,7 @@
  */
 
 import { postgresDB } from '../database/postgresAdapter.js';
+import { db } from '../services/databaseService.js';
 import { refreshDevicePresence, updateDeviceState } from '../cache/cacheService.js';
 
 export class MQTTBrokerSimulator {
@@ -18,48 +19,45 @@ export class MQTTBrokerSimulator {
     this.isStreaming = false;
     // Track devices that are sending real telemetry (prevents simulation restart)
     this.realTelemetryActive = new Set();
-    // Emergency queue for multiple simultaneous emergencies
-    this.emergencyQueue = [];
   }
 
-  startIngestionPipeline() {
+  async startIngestionPipeline() {
     if (this.isStreaming) return;
     this.isStreaming = true;
 
-    const vehicles = postgresDB.getVehicles();
-    const tokens = postgresDB.getDeviceTokens();
+    const vehicles = await postgresDB.getVehicles();
+    const tokens = await postgresDB.getDeviceTokens();
     const activeDeviceIds = new Set(tokens.filter(t => t.status === 'ACTIVE').map(t => t.deviceId));
 
-    vehicles.forEach(vehicle => {
+    for (const vehicle of vehicles) {
       if (activeDeviceIds.has(vehicle.id)) {
+        await postgresDB.updateVehicleStatus(vehicle.id, 'normal', vehicle.heartBeatIntervalSec || 10);
         this.startVehicleTelemetryLoop(vehicle.id, vehicle.heartBeatIntervalSec || 10);
-        postgresDB.updateVehicleStatus(vehicle.id, 'normal', vehicle.heartBeatIntervalSec || 10);
       } else {
-        postgresDB.updateVehicleStatus(vehicle.id, 'offline', vehicle.heartBeatIntervalSec || 10);
+        await postgresDB.updateVehicleStatus(vehicle.id, 'offline', vehicle.heartBeatIntervalSec || 10);
       }
-    });
+    }
 
     console.log(`[MQTT Broker] Ingestion pipeline operational — ${activeDeviceIds.size}/${vehicles.length} devices connected`);
   }
 
-  startDeviceTelemetry(vehicleId) {
-    // Don't restart simulation if real device is already sending telemetry
+  async startDeviceTelemetry(vehicleId) {
     if (this.realTelemetryActive.has(vehicleId)) {
       console.log(`[MQTT Broker] Skipping simulation for ${vehicleId} — real telemetry active`);
       return;
     }
-    const vehicle = postgresDB.getVehicleById(vehicleId);
+    const vehicle = await postgresDB.getVehicleById(vehicleId);
     if (!vehicle) return;
-    postgresDB.updateVehicleStatus(vehicleId, 'normal', vehicle.heartBeatIntervalSec || 10);
+    await postgresDB.updateVehicleStatus(vehicleId, 'normal', vehicle.heartBeatIntervalSec || 10);
     this.startVehicleTelemetryLoop(vehicleId, vehicle.heartBeatIntervalSec || 10);
   }
 
-  stopDeviceTelemetry(vehicleId) {
+  async stopDeviceTelemetry(vehicleId) {
     if (this.telemetryIntervals.has(vehicleId)) {
       clearInterval(this.telemetryIntervals.get(vehicleId));
       this.telemetryIntervals.delete(vehicleId);
     }
-    postgresDB.updateVehicleStatus(vehicleId, 'offline');
+    await postgresDB.updateVehicleStatus(vehicleId, 'offline');
   }
 
   startVehicleTelemetryLoop(vehicleId, intervalSec) {
@@ -76,8 +74,8 @@ export class MQTTBrokerSimulator {
     this.telemetryIntervals.set(vehicleId, timer);
   }
 
-  publishVehicleTelemetry(vehicleId) {
-    const vehicle = postgresDB.getVehicleById(vehicleId);
+  async publishVehicleTelemetry(vehicleId) {
+    const vehicle = await postgresDB.getVehicleById(vehicleId);
     if (!vehicle) return;
 
     // Simulate location movement delta
@@ -147,12 +145,12 @@ export class MQTTBrokerSimulator {
   }
 
   // Handle MQTT Emergency Panic Button trigger payload
-  handleEmergencyPublish(vehicleId, details) {
-    const vehicle = postgresDB.getVehicleById(vehicleId);
+  async handleEmergencyPublish(vehicleId, details) {
+    const vehicle = await postgresDB.getVehicleById(vehicleId);
     if (!vehicle) return null;
 
     // Set vehicle status to emergency and scale heartbeat to 1s
-    postgresDB.updateVehicleStatus(vehicleId, 'emergency', 1);
+    await postgresDB.updateVehicleStatus(vehicleId, 'emergency', 1);
 
     // Only restart simulation if device is NOT sending real telemetry
     if (!this.realTelemetryActive.has(vehicleId)) {
@@ -160,7 +158,7 @@ export class MQTTBrokerSimulator {
     }
 
     // Record incident in audit trail
-    const incidentRecord = postgresDB.createIncidentRecord({
+    const incidentRecord = await postgresDB.createIncidentRecord({
       vehicleId,
       type: 'PANIC_BUTTON',
       severity: 'CRITICAL',
@@ -168,44 +166,32 @@ export class MQTTBrokerSimulator {
       details: details || `Emergency Panic Button triggered on board ${vehicle.code} (${vehicle.name}).`
     });
 
-    // Add to emergency queue
-    this.emergencyQueue.push({
-      incidentId: incidentRecord.id,
-      vehicleId,
-      vehicleCode: vehicle.code,
-      timestamp: incidentRecord.timestamp,
-      status: 'ACTIVE'
-    });
+    // Query active incidents from PostgreSQL as the queue
+    const queue = await postgresDB.getIncidents('OPEN');
 
     // Broadcast emergency alert with queue info
     if (this.onSocketBroadcast) {
       this.onSocketBroadcast('emergency_alert', {
         incident: incidentRecord,
-        vehicle: postgresDB.getVehicleById(vehicleId),
-        queue: this.emergencyQueue,
-        queueIndex: this.emergencyQueue.length - 1
+        vehicle: await postgresDB.getVehicleById(vehicleId),
+        queue,
+        queueIndex: queue.length - 1
       });
 
       // Also broadcast queue update for other connected clients
       this.onSocketBroadcast('emergency_queue_update', {
-        queue: this.emergencyQueue,
-        totalActive: this.emergencyQueue.filter(e => e.status === 'ACTIVE').length
+        queue,
+        totalActive: queue.length
       });
     }
 
-    console.log(`[MQTT Broker] EMERGENCY TRIGGERED on topic \`fleet/${vehicleId}/emergency\`: Incident ID ${incidentRecord.id}. Queue size: ${this.emergencyQueue.length}`);
+    console.log(`[MQTT Broker] EMERGENCY TRIGGERED on topic \`fleet/${vehicleId}/emergency\`: Incident ID ${incidentRecord.id}. Queue size: ${queue.length}`);
     return incidentRecord;
   }
 
-  // Remove resolved emergency from queue
+  // Remove resolved emergency from queue (no-op — PostgreSQL is source of truth)
   removeFromEmergencyQueue(incidentId) {
-    this.emergencyQueue = this.emergencyQueue.filter(e => e.incidentId !== incidentId);
-    if (this.onSocketBroadcast) {
-      this.onSocketBroadcast('emergency_queue_update', {
-        queue: this.emergencyQueue,
-        totalActive: this.emergencyQueue.filter(e => e.status === 'ACTIVE').length
-      });
-    }
+    // Queue is now derived from PostgreSQL queries, no in-memory state to remove
   }
 
   /**
@@ -214,8 +200,8 @@ export class MQTTBrokerSimulator {
    * the point to PostgreSQL (PostGIS) and InfluxDB (time-series), and broadcasts
    * the live update over WebSocket to the Command Center.
    */
-  ingestExternalTelemetry({ vehicleId, lat, lng, speed, heading, passengers }) {
-    const vehicle = postgresDB.getVehicleById(vehicleId);
+  async ingestExternalTelemetry({ vehicleId, lat, lng, speed, heading, passengers }) {
+    const vehicle = await postgresDB.getVehicleById(vehicleId);
     if (!vehicle) return { error: 'Vehicle not found' };
 
     // Stop simulation loop — real hardware is sending data

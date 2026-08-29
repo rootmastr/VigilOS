@@ -325,13 +325,17 @@ model FieldReport {
 }
 
 model Telemetry {
-  id        String   @id @default(uuid())
-  vehicleId String
-  lat       Float
-  lng       Float
-  speed     Float
-  heading   Float
-  timestamp DateTime @default(now())
+  id               String   @id @default(uuid())
+  vehicleId        String
+  lat              Float
+  lng              Float
+  speed            Float
+  heading          Float
+  passengers       Int      @default(0)
+  heartbeatRateSec Int      @default(10)
+  anomalyDetected  Boolean  @default(false)
+  anomalyType      String?
+  timestamp        DateTime @default(now())
 
   vehicle Vehicle @relation(fields: [vehicleId], references: [id])
 

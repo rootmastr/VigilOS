@@ -28,7 +28,7 @@ const rateLimitMiddleware = async (req, res, next) => {
   const { allowed, count, remaining, retryAfterSec } = await checkRateLimit(deviceIdHint, isEmergency);
 
   if (!allowed) {
-    postgresDB.logSecurityEvent({
+    await postgresDB.logSecurityEvent({
       eventType: 'RATE_LIMIT_EXCEEDED',
       deviceId: deviceIdHint,
       ipAddress: req.ip || req.socket.remoteAddress,
@@ -97,7 +97,7 @@ router.post('/telemetry/ingest', rateLimitMiddleware, (req, res, next) => {
 // POST /api/v1/emergency/trigger
 router.post('/emergency/trigger', (req, res, next) => {
   validateDeviceToken(req, res, next);
-}, (req, res) => {
+}, async (req, res) => {
   const { vehicleId, details } = req.body;
   const targetId = vehicleId || req.authenticatedDevice.deviceId;
 
@@ -115,7 +115,7 @@ router.post('/emergency/trigger', (req, res, next) => {
 
   const incident = mqttBroker.handleEmergencyPublish(targetId, details);
 
-  const nearbyPatrols = postgresDB.findNearbyVehicles(incident.location.lat, incident.location.lng, 10000);
+  const nearbyPatrols = await postgresDB.findNearbyVehicles(incident.location.lat, incident.location.lng, 10000);
   fcmService.dispatchPatrolPushAlert(incident, nearbyPatrols);
 
   res.json({
@@ -126,13 +126,13 @@ router.post('/emergency/trigger', (req, res, next) => {
 });
 
 // GET /api/v1/telemetry/history
-router.get('/telemetry/history', (req, res) => {
+router.get('/telemetry/history', async (req, res) => {
   const { vehicleId, limit } = req.query;
   if (vehicleId) {
-    const history = influxDB.queryVehicleHistory(vehicleId, Number(limit) || 100);
+    const history = await influxDB.queryVehicleHistory(vehicleId, Number(limit) || 100);
     return res.json({ success: true, vehicleId, count: history.length, data: history });
   }
-  const anomalies = influxDB.querySpeedAnomalies();
+  const anomalies = await influxDB.querySpeedAnomalies();
   res.json({ success: true, type: 'anomalies', count: anomalies.length, data: anomalies });
 });
 

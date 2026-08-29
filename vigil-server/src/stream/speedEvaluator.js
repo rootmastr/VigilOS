@@ -10,13 +10,12 @@ import { db } from '../services/databaseService.js';
 
 export class SpeedEvaluator {
   constructor(onControlCommand) {
-    this.onControlCommand = onControlCommand; // Callback to publish MQTT control signal
-    this.activeAnomalies = new Map(); // Track active anomalies per vehicle
+    this.onControlCommand = onControlCommand;
   }
 
-  evaluateTelemetry(telemetry) {
+  async evaluateTelemetry(telemetry) {
     const { vehicleId, speed, lat, lng, heading, passengers } = telemetry;
-    const vehicle = postgresDB.getVehicleById(vehicleId);
+    const vehicle = await postgresDB.getVehicleById(vehicleId);
     
     if (!vehicle) return { anomaly: false };
 
@@ -40,7 +39,7 @@ export class SpeedEvaluator {
 
     // Check if heartbeat interval needs updating
     if (vehicle.heartBeatIntervalSec !== heartBeatIntervalSec) {
-      postgresDB.updateVehicleStatus(vehicleId, isOverspeeding ? 'warning' : vehicle.status === 'warning' ? 'normal' : vehicle.status, heartBeatIntervalSec);
+      await postgresDB.updateVehicleStatus(vehicleId, isOverspeeding ? 'warning' : vehicle.status === 'warning' ? 'normal' : vehicle.status, heartBeatIntervalSec);
       
       // Dispatch control signal down MQTT topic `fleet/{device_id}/control`
       if (this.onControlCommand) {
@@ -55,12 +54,12 @@ export class SpeedEvaluator {
     }
 
     // Update PostGIS DB & InfluxDB
-    postgresDB.updateVehicleLocation(vehicleId, { lat, lng, speed, heading, passengers });
+    await postgresDB.updateVehicleLocation(vehicleId, { lat, lng, speed, heading, passengers });
 
     // Persist to PostgreSQL for crash recovery and initial_state on reconnect (fire-and-forget)
     db.updateVehicle(vehicleId, { lat, lng, speed, heading }).catch(() => {});
 
-    influxDB.writePoint({
+    await influxDB.writePoint({
       vehicleId,
       lat,
       lng,

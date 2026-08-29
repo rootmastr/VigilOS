@@ -768,72 +768,92 @@ export function securityHeaders(req, res, next) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 7. Audit Logging
+// 7. Audit Logging — Flushes to PostgreSQL AuditLog table
 // ═══════════════════════════════════════════════════════════════════════════════
+
+import { db } from '../services/databaseService.js';
 
 const auditLogBuffer = [];
 const AUDIT_FLUSH_INTERVAL = 5000;
-const AUDIT_MAX_BUFFER = 500;
+const AUDIT_MAX_BUFFER = 50;
 
 /**
- * Structured JSON audit log entry.
+ * Structured JSON audit log entry — buffered then flushed to PostgreSQL.
  */
 export function logSecurityAudit(entry) {
   const record = {
-    id: `SEC-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`,
-    timestamp: new Date().toISOString(),
     action: entry.action || 'UNKNOWN',
     userId: entry.userId || null,
-    user: entry.user || null,
     resource: entry.resource || null,
-    result: entry.result || 'SUCCESS',
     details: entry.details || '',
     ip: entry.ip || null,
     userAgent: entry.userAgent || null,
-    requestId: entry.requestId || null,
-    tenantId: entry.tenantId || null,
-    metadata: entry.metadata || null,
+    tenantId: entry.tenantId || 'ws-semarang-01',
+    metadata: {
+      result: entry.result || 'SUCCESS',
+      requestId: entry.requestId || null,
+      user: entry.user || null,
+      ...entry.metadata,
+    },
   };
 
   auditLogBuffer.push(record);
 
-  // Flush if buffer is full
   if (auditLogBuffer.length >= AUDIT_MAX_BUFFER) {
     flushAuditLog();
   }
 
-  // Console output for immediate visibility
-  if (record.result !== 'SUCCESS') {
-    console.warn(`[SECURITY] ${record.action} | ${record.result} | ${record.ip || 'N/A'} | ${record.details}`);
+  if (record.metadata.result !== 'SUCCESS') {
+    console.warn(`[SECURITY] ${record.action} | ${record.metadata.result} | ${record.ip || 'N/A'} | ${record.details}`);
   }
 
   return record;
 }
 
 /**
- * Flush buffered audit log entries to storage.
+ * Flush buffered audit log entries to PostgreSQL.
  */
-function flushAuditLog() {
+async function flushAuditLog() {
   if (auditLogBuffer.length === 0) return;
   const entries = auditLogBuffer.splice(0);
-  // In production, write to persistent store (Postgres, file, etc.)
-  // For now, entries are available via getAuditLog()
-  return entries;
+  try {
+    await db.prisma.auditLog.createMany({
+      data: entries.map(e => ({
+        action: e.action,
+        userId: e.userId,
+        tenantId: e.tenantId,
+        resource: e.resource,
+        details: e.metadata,
+        ipAddress: e.ip,
+        userAgent: e.userAgent,
+      })),
+      skipDuplicates: true,
+    });
+  } catch (err) {
+    console.error('[AuditLog] Failed to flush to PostgreSQL:', err.message);
+  }
 }
 
 // Periodic flush
 setInterval(flushAuditLog, AUDIT_FLUSH_INTERVAL);
 
 /**
- * Retrieve audit log entries (from buffer + any flushed entries).
+ * Retrieve audit log entries from PostgreSQL.
  */
-export function getAuditLog({ limit = 100, action, userId, result, since } = {}) {
-  let logs = [...auditLogBuffer];
-  if (action) logs = logs.filter(l => l.action === action);
-  if (userId) logs = logs.filter(l => l.userId === userId);
-  if (result) logs = logs.filter(l => l.result === result);
-  if (since) logs = logs.filter(l => new Date(l.timestamp) >= new Date(since));
-  return logs.slice(0, limit);
+export async function getAuditLog({ limit = 100, action, userId, result, since } = {}) {
+  const where = {};
+  if (action) where.action = action;
+  if (userId) where.userId = userId;
+  if (since) where.createdAt = { gte: new Date(since) };
+  try {
+    return await db.prisma.auditLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+  } catch {
+    return [];
+  }
 }
 
 /**

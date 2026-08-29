@@ -12,7 +12,6 @@ import jwt from 'jsonwebtoken';
 import zlib from 'zlib';
 
 import { redisClient } from '../cache/redisClient.js';
-import { postgresDB } from '../database/postgresAdapter.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'vigilos-secret-key-2024';
 

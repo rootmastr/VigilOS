@@ -113,7 +113,7 @@ router.post('/vehicles', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_A
     });
 
     // Sync to in-memory store for MQTT simulator
-    postgresDB.vehicles.push(vehicle);
+    await postgresDB.createVehicle(vehicle);
 
     // Broadcast via MQTT
     if (mqttBroker?.onSocketBroadcast) {
@@ -152,8 +152,7 @@ router.patch('/vehicles/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TEN
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
     const updated = await db.updateVehicle(req.params.id, req.body);
-    const idx = postgresDB.vehicles.findIndex(v => v.id === req.params.id);
-    if (idx !== -1) Object.assign(postgresDB.vehicles[idx], req.body);
+    await postgresDB.updateVehicle(req.params.id, req.body);
     res.json({ success: true, data: updated });
   } catch (error) {
     console.error('Patch vehicle error:', error);
@@ -188,8 +187,7 @@ router.put('/vehicles/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TENAN
     });
 
     // Sync to in-memory store
-    const idx = postgresDB.vehicles.findIndex(v => v.id === updated.id);
-    if (idx >= 0) postgresDB.vehicles[idx] = { ...postgresDB.vehicles[idx], ...updated };
+    await postgresDB.updateVehicle(updated.id, updated);
 
     // Broadcast via MQTT
     if (mqttBroker?.onSocketBroadcast) {
@@ -228,7 +226,7 @@ router.delete('/vehicles/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TE
     }
 
     // Remove from in-memory store
-    postgresDB.vehicles = postgresDB.vehicles.filter(v => v.id !== req.params.id && v.code !== req.params.id);
+    await postgresDB.deleteVehicle(req.params.id);
 
     // Broadcast via MQTT
     if (mqttBroker?.onSocketBroadcast) {
@@ -236,7 +234,7 @@ router.delete('/vehicles/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TE
     }
 
     // Revoke any active device tokens for this vehicle
-    postgresDB.getDeviceTokens()
+    (await postgresDB.getDeviceTokens())
       .filter(t => t.deviceId === vehicle.id || t.deviceId === vehicle.code)
       .forEach(t => {
         t.status = 'REVOKED';
@@ -351,7 +349,7 @@ router.post('/drivers', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_AD
     });
 
     // Sync to in-memory store
-    postgresDB.drivers.push(driver);
+    await postgresDB.createDriver(driver);
 
     // Broadcast via MQTT
     if (mqttBroker?.onSocketBroadcast) {
@@ -402,8 +400,7 @@ router.put('/drivers/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT
     });
 
     // Sync to in-memory store
-    const dIdx = postgresDB.drivers.findIndex(d => d.id === updated.id);
-    if (dIdx >= 0) postgresDB.drivers[dIdx] = { ...postgresDB.drivers[dIdx], ...updated };
+    await postgresDB.updateDriver(updated.id, updated);
 
     // Broadcast via MQTT
     if (mqttBroker?.onSocketBroadcast) {
@@ -437,7 +434,7 @@ router.delete('/drivers/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TEN
     await db.deleteDriver(req.params.id);
 
     // Remove from in-memory store
-    postgresDB.drivers = postgresDB.drivers.filter(d => d.id !== req.params.id);
+    await postgresDB.deleteDriver(req.params.id);
 
     // Broadcast via MQTT
     if (mqttBroker?.onSocketBroadcast) {
