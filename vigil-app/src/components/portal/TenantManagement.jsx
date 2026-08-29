@@ -3,8 +3,7 @@ import {
   Building2, Plus, Search, Filter, ChevronRight, Users, Bus,
   AlertCircle, Check, Clock, Ban, Loader2, Trash2, Eye,
 } from 'lucide-react';
-
-const BACKEND_URL = '';
+import api from '../../services/api';
 
 const STATUS_STYLES = {
   ACTIVE: { bg: 'rgba(34, 197, 94, 0.15)', color: '#22c55e', label: 'ACTIVE' },
@@ -32,11 +31,7 @@ export default function TenantManagement({ user, onSelectTenant, onAddNew, showT
   const fetchTenants = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('vigil_access_token');
-      const res = await fetch(`${BACKEND_URL}/api/v1/tenants?take=100`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
+      const { data } = await api.get('/api/v1/tenants', { params: { take: 100 } });
       if (data.success) setTenants(data.data);
     } catch (e) {
       console.error('Failed to fetch tenants:', e);
@@ -47,11 +42,7 @@ export default function TenantManagement({ user, onSelectTenant, onAddNew, showT
 
   const fetchStats = async () => {
     try {
-      const token = localStorage.getItem('vigil_access_token');
-      const res = await fetch(`${BACKEND_URL}/api/v1/tenants/stats`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
+      const { data } = await api.get('/api/v1/tenants/stats');
       if (data.success) setStats(data.data);
     } catch (e) {
       console.error('Failed to fetch stats:', e);
@@ -62,12 +53,7 @@ export default function TenantManagement({ user, onSelectTenant, onAddNew, showT
     e.stopPropagation();
     if (!confirm('Are you sure you want to delete this tenant?')) return;
     try {
-      const token = localStorage.getItem('vigil_access_token');
-      const res = await fetch(`${BACKEND_URL}/api/v1/tenants/${tenantId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
+      const { data } = await api.delete(`/api/v1/tenants/${tenantId}`);
       if (data.success) {
         showToast?.('Tenant deleted');
         fetchTenants();

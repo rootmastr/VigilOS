@@ -3,8 +3,7 @@ import {
   Building2, CreditCard, UserPlus, Settings, Rocket, ArrowLeft,
   ArrowRight, X, Loader2, Check, AlertCircle,
 } from 'lucide-react';
-
-const BACKEND_URL = '';
+import api from '../../services/api';
 
 const STEPS = [
   { id: 'basic', label: 'Basic Info', icon: Building2 },
@@ -62,14 +61,10 @@ export default function ProvisioningWizard({ onClose, onComplete, showToast }) {
     }
     setValidating(prev => ({ ...prev, [type]: true }));
     try {
-      const token = localStorage.getItem('vigil_access_token');
-      const params = new URLSearchParams();
-      if (type === 'slug' || type === 'email') params.set(type, value);
-      if (type === 'adminEmail') params.set('email', value);
-      const res = await fetch(`${BACKEND_URL}/api/v1/tenants/check?${params}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
+      const params = {};
+      if (type === 'slug' || type === 'email') params[type] = value;
+      if (type === 'adminEmail') params.email = value;
+      const { data } = await api.get('/api/v1/tenants/check', { params });
       if (data.success) {
         const key = type === 'adminEmail' ? 'email' : type;
         setValidation(prev => ({ ...prev, [type]: data.data[key]?.available ?? null }));
@@ -129,7 +124,6 @@ export default function ProvisioningWizard({ onClose, onComplete, showToast }) {
     setLoading(true);
     setError(null);
     try {
-      const token = localStorage.getItem('vigil_access_token');
       const payload = {
         tenant: {
           name: formData.tenant.name,
@@ -154,12 +148,7 @@ export default function ProvisioningWizard({ onClose, onComplete, showToast }) {
         activate: formData.activate,
       };
 
-      const res = await fetch(`${BACKEND_URL}/api/v1/tenants/provision`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
+      const { data } = await api.post('/api/v1/tenants/provision', payload);
       if (data.success) {
         onComplete?.(data.data);
       } else {

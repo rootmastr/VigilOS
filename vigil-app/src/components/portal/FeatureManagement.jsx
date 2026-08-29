@@ -3,8 +3,7 @@ import {
   Puzzle, ToggleLeft, ToggleRight, Settings, Info, Loader2, AlertCircle, Check,
   Lock, Unlock,
 } from 'lucide-react';
-
-const BACKEND_URL = '';
+import api from '../../services/api';
 
 const FEATURE_LABELS = {
   'vehicles:read': { label: 'Vehicle Read', desc: 'View vehicle data and status' },
@@ -27,16 +26,12 @@ export default function FeatureManagement({ user }) {
   const [editingFeature, setEditingFeature] = useState(null);
 
   const tenantId = user?.tenantId;
-  const token = localStorage.getItem('vigil_access_token');
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
   const fetchFeatures = useCallback(async () => {
     if (!tenantId) return;
     try {
-      const res = await fetch(`${BACKEND_URL}/api/v1/tenants/${tenantId}/features`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
+      const { data } = await api.get(`/api/v1/tenants/${tenantId}/features`);
       if (data.success) {
         setFeaturesData(data.data);
       }
@@ -60,7 +55,7 @@ export default function FeatureManagement({ user }) {
     } finally {
       setLoading(false);
     }
-  }, [tenantId, token]);
+  }, [tenantId]);
 
   useEffect(() => { fetchFeatures(); }, [fetchFeatures]);
 
@@ -70,12 +65,7 @@ export default function FeatureManagement({ user }) {
     setMessage(null);
 
     try {
-      const res = await fetch(`${BACKEND_URL}/api/v1/tenants/${tenantId}/features/${feature}`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled }),
-      });
-      const data = await res.json();
+      const { data } = await api.put(`/api/v1/tenants/${tenantId}/features/${feature}`, { enabled });
       if (data.success) {
         setFeaturesData(prev => ({
           ...prev,

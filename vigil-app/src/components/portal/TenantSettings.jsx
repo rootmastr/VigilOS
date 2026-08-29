@@ -3,8 +3,7 @@ import {
   Settings, Globe, Palette, Bell, Shield, Plug, Save, RotateCcw,
   Download, Upload, ChevronDown, AlertCircle, Check, Loader2,
 } from 'lucide-react';
-
-const BACKEND_URL = '';
+import api from '../../services/api';
 
 const CATEGORIES = [
   { key: 'general', label: 'General', icon: Globe, description: 'Timezone, language, currency, date format' },
@@ -154,15 +153,11 @@ export default function TenantSettings({ user }) {
   const [resetting, setResetting] = useState(false);
 
   const tenantId = user?.tenantId;
-  const token = localStorage.getItem('vigil_access_token');
 
   const fetchSettings = useCallback(async () => {
     if (!tenantId) return;
     try {
-      const res = await fetch(`${BACKEND_URL}/api/v1/tenants/${tenantId}/settings`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
+      const { data } = await api.get(`/api/v1/tenants/${tenantId}/settings`);
       if (data.success) {
         setSettings(data.data);
         setEditedSettings({});
@@ -230,12 +225,7 @@ export default function TenantSettings({ user }) {
 
     try {
       for (const [category, updates] of Object.entries(editedSettings)) {
-        const res = await fetch(`${BACKEND_URL}/api/v1/tenants/${tenantId}/settings/${category}`, {
-          method: 'PUT',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ settings: updates }),
-        });
-        const data = await res.json();
+        const { data } = await api.put(`/api/v1/tenants/${tenantId}/settings/${category}`, { settings: updates });
         if (!data.success) {
           setMessage({ type: 'error', text: data.error || 'Failed to save settings' });
           setSaving(false);
@@ -258,11 +248,7 @@ export default function TenantSettings({ user }) {
     if (!tenantId) return;
     setResetting(true);
     try {
-      await fetch(`${BACKEND_URL}/api/v1/tenants/${tenantId}/settings/reset`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category: activeCategory }),
-      });
+      await api.post(`/api/v1/tenants/${tenantId}/settings/reset`, { category: activeCategory });
       setMessage({ type: 'success', text: `${activeCategory} settings reset to defaults` });
       setEditedSettings(prev => { const n = { ...prev }; delete n[activeCategory]; return n; });
       await fetchSettings();
@@ -277,10 +263,7 @@ export default function TenantSettings({ user }) {
   const handleExport = async () => {
     if (!tenantId) return;
     try {
-      const res = await fetch(`${BACKEND_URL}/api/v1/tenants/${tenantId}/settings/export`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
+      const { data } = await api.get(`/api/v1/tenants/${tenantId}/settings/export`);
       if (data.success) {
         const blob = new Blob([JSON.stringify(data.data, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);

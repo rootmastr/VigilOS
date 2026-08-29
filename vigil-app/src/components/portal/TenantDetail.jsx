@@ -3,8 +3,7 @@ import {
   ArrowLeft, Building2, Users, Bus, AlertTriangle, Settings, Puzzle,
   Play, Pause, Trash2, Loader2, Check, ExternalLink, Shield,
 } from 'lucide-react';
-
-const BACKEND_URL = '';
+import api from '../../services/api';
 
 const STATUS_STYLES = {
   ACTIVE: { bg: 'rgba(34, 197, 94, 0.15)', color: '#22c55e', label: 'ACTIVE' },
@@ -29,11 +28,7 @@ export default function TenantDetail({ tenantId, onBack, onManageSettings, onMan
   const fetchTenant = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('vigil_access_token');
-      const res = await fetch(`${BACKEND_URL}/api/v1/tenants/${tenantId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
+      const { data } = await api.get(`/api/v1/tenants/${tenantId}`);
       if (data.success) setTenant(data.data);
     } catch (e) {
       console.error('Failed to fetch tenant:', e);
@@ -44,11 +39,7 @@ export default function TenantDetail({ tenantId, onBack, onManageSettings, onMan
 
   const fetchProvisionStatus = async () => {
     try {
-      const token = localStorage.getItem('vigil_access_token');
-      const res = await fetch(`${BACKEND_URL}/api/v1/tenants/${tenantId}/provision-status`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
+      const { data } = await api.get(`/api/v1/tenants/${tenantId}/provision-status`);
       if (data.success) setProvisionStatus(data.data);
     } catch (e) {
       console.error('Failed to fetch provision status:', e);
@@ -58,13 +49,7 @@ export default function TenantDetail({ tenantId, onBack, onManageSettings, onMan
   const handleStatusChange = async (newStatus, reason) => {
     setActionLoading(true);
     try {
-      const token = localStorage.getItem('vigil_access_token');
-      const res = await fetch(`${BACKEND_URL}/api/v1/tenants/${tenantId}/status`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus, reason }),
-      });
-      const data = await res.json();
+      const { data } = await api.put(`/api/v1/tenants/${tenantId}/status`, { status: newStatus, reason });
       if (data.success) {
         showToast?.(`Tenant ${newStatus.toLowerCase()}`);
         fetchTenant();
@@ -82,12 +67,7 @@ export default function TenantDetail({ tenantId, onBack, onManageSettings, onMan
     if (!confirm('Are you sure you want to delete this tenant? This action cannot be undone.')) return;
     setActionLoading(true);
     try {
-      const token = localStorage.getItem('vigil_access_token');
-      const res = await fetch(`${BACKEND_URL}/api/v1/tenants/${tenantId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
+      const { data } = await api.delete(`/api/v1/tenants/${tenantId}`);
       if (data.success) {
         showToast?.('Tenant deleted');
         onBack?.();

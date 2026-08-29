@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Users, Bus, Truck, Building2, Wifi, WifiOff, ChevronDown, Check, LogOut, Shield, User, Loader2 } from 'lucide-react';
+import api from '../../services/api';
 
 const FALLBACK_TENANTS = [
   { id: 'ws-semarang-01', name: 'Dishub Kota Semarang', region: 'Jawa Tengah', industry: 'Government', planTier: 'ENTERPRISE' },
@@ -37,16 +38,11 @@ export default function TopHeader({ activeUnits, operatorCount, connected, curre
   const fetchTenants = async () => {
     setTenantsLoading(true);
     try {
-      const token = localStorage.getItem('vigil_access_token');
-      const headers = { Authorization: `Bearer ${token}` };
-
       if (user?.role === 'SUPER_ADMIN') {
-        const res = await fetch('/api/v1/tenants?take=100', { headers });
-        const data = await res.json();
+        const { data } = await api.get('/api/v1/tenants', { params: { take: 100 } });
         if (data.success && data.data?.length) setTenants(data.data);
       } else if (user?.tenantId) {
-        const res = await fetch(`/api/v1/tenants/${user.tenantId}`, { headers });
-        const data = await res.json();
+        const { data } = await api.get(`/api/v1/tenants/${user.tenantId}`);
         if (data.success && data.data) setTenants([data.data]);
       }
     } catch (e) {
