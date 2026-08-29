@@ -20,9 +20,9 @@ class AuthService {
       });
 
       if (response.data.success) {
-        const { token, refreshToken, user } = response.data.data;
+        const { accessToken, refreshToken, user } = response.data.data;
         
-        this.setTokens(token, refreshToken);
+        this.setTokens(accessToken, refreshToken);
         this.setUser(user);
         
         return { success: true, user };
@@ -63,9 +63,9 @@ class AuthService {
       });
 
       if (response.data.success) {
-        const { token, refreshToken } = response.data.data;
-        this.setTokens(token, refreshToken);
-        return token;
+        const { accessToken, refreshToken } = response.data.data;
+        this.setTokens(accessToken, refreshToken);
+        return accessToken;
       }
       
       throw new Error('Token refresh failed');

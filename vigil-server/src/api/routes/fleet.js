@@ -234,12 +234,21 @@ router.delete('/vehicles/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TE
     }
 
     // Revoke any active device tokens for this vehicle
-    (await postgresDB.getDeviceTokens())
-      .filter(t => t.deviceId === vehicle.id || t.deviceId === vehicle.code)
-      .forEach(t => {
-        t.status = 'REVOKED';
-        t.revokedAt = new Date().toISOString();
-      });
+    try {
+      const tokens = await postgresDB.getDeviceTokens();
+      for (const t of tokens) {
+        if (t.deviceId === vehicle.id || t.deviceId === vehicle.code) {
+          if (typeof postgresDB.revokeDeviceToken === 'function') {
+            await postgresDB.revokeDeviceToken(t.id);
+          } else {
+            await db.prisma.deviceToken.update({
+              where: { id: t.id },
+              data: { status: 'REVOKED', revokedAt: new Date() },
+            }).catch(() => {});
+          }
+        }
+      }
+    } catch (_) {}
 
     // Log vehicle deletion
     try {

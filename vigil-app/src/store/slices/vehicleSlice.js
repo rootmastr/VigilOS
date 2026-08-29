@@ -7,7 +7,7 @@ export const fetchVehicles = createAsyncThunk(
   async (params, { rejectWithValue }) => {
     try {
       const response = await api.get('/api/v1/fleet/vehicles', { params });
-      return response.data.data.vehicles;
+      return response.data.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.error || 'Failed to fetch vehicles');
     }
