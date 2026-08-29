@@ -980,84 +980,89 @@ function analyzeSuspiciousPatterns(req) {
  * Express middleware: DDoS protection layer.
  */
 export async function ddosProtection(req, res, next) {
-  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
-
-  if (process.env.NODE_ENV !== 'production' && (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1')) {
-    return next();
-  }
-
-  if (!redisClient.isAvailable) return next();
-
-  // Check if IP is blocked
-  if (await isIPBlocked(ip)) {
-    // Allow authenticated requests to pass through even if IP is blocked
-    const authHeader = req.headers['authorization'];
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      try {
-        const token = authHeader.replace(/^Bearer\s+/, '').trim();
-        jwt.verify(token, JWT_SECRET);
-        return next();
-      } catch {
-        // Invalid token — still blocked
-      }
-    }
-    logSecurityAudit({
-      action: 'DDOS_BLOCKED',
-      resource: req.path,
-      result: 'BLOCKED',
-      details: `Request from blocked IP`,
-      ip,
-    });
-    return res.status(403).json({ success: false, error: 'Access denied' });
-  }
-
-  // Analyze suspicious patterns
-  const suspiciousScore = analyzeSuspiciousPatterns(req);
-  if (suspiciousScore > 0) {
-    incrementSuspiciousScore(ip, suspiciousScore).catch(() => {});
-  }
-
-  // IP-based rate limiting via Redis
-  const now = Date.now();
-  const windowStart = now - DDoS.ipWindowMs;
-  const key = `ddos:requests:${ip}`;
-
   try {
-    const pipe = redisClient.client.pipeline();
-    pipe.zremrangebyscore(key, 0, windowStart);
-    pipe.zadd(key, now, `${now}-${crypto.randomBytes(4).toString('hex')}`);
-    pipe.zcard(key);
-    pipe.expire(key, Math.ceil(DDoS.ipWindowMs / 1000));
-    const [, , countResult] = await pipe.exec();
-    const count = countResult?.[1] ?? 0;
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
 
-    if (count > DDoS.ipMaxRequests) {
-      await blockIP(ip, DDoS.blockDurationSec);
+    if (process.env.NODE_ENV !== 'production' && (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1')) {
+      return next();
+    }
+
+    if (!redisClient.isAvailable) return next();
+
+    // Check if IP is blocked
+    if (await isIPBlocked(ip)) {
+      // Allow authenticated requests to pass through even if IP is blocked
+      const authHeader = req.headers['authorization'];
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+          const token = authHeader.replace(/^Bearer\s+/, '').trim();
+          jwt.verify(token, JWT_SECRET);
+          return next();
+        } catch {
+          // Invalid token — still blocked
+        }
+      }
       logSecurityAudit({
-        action: 'DDOS_RATE_EXCEEDED',
+        action: 'DDOS_BLOCKED',
         resource: req.path,
         result: 'BLOCKED',
-        details: `${count} requests in ${DDoS.ipWindowMs / 1000}s window (max ${DDoS.ipMaxRequests})`,
+        details: `Request from blocked IP`,
         ip,
       });
-      return res.status(429).json({
-        success: false,
-        error: 'Too Many Requests',
-        message: 'Request rate exceeded. Temporary block in effect.',
-        retryAfterSec: DDoS.blockDurationSec,
-      });
+      return res.status(403).json({ success: false, error: 'Access denied' });
     }
 
-    req.ddosInfo = {
-      ip,
-      requestsInWindow: count,
-      limit: DDoS.ipMaxRequests,
-    };
-  } catch {
-    // Redis error — fail open
-  }
+    // Analyze suspicious patterns
+    const suspiciousScore = analyzeSuspiciousPatterns(req);
+    if (suspiciousScore > 0) {
+      incrementSuspiciousScore(ip, suspiciousScore).catch(() => {});
+    }
 
-  next();
+    // IP-based rate limiting via Redis
+    const now = Date.now();
+    const windowStart = now - DDoS.ipWindowMs;
+    const key = `ddos:requests:${ip}`;
+
+    try {
+      const pipe = redisClient.client.pipeline();
+      pipe.zremrangebyscore(key, 0, windowStart);
+      pipe.zadd(key, now, `${now}-${crypto.randomBytes(4).toString('hex')}`);
+      pipe.zcard(key);
+      pipe.expire(key, Math.ceil(DDoS.ipWindowMs / 1000));
+      const [, , countResult] = await pipe.exec();
+      const count = countResult?.[1] ?? 0;
+
+      if (count > DDoS.ipMaxRequests) {
+        await blockIP(ip, DDoS.blockDurationSec);
+        logSecurityAudit({
+          action: 'DDOS_RATE_EXCEEDED',
+          resource: req.path,
+          result: 'BLOCKED',
+          details: `${count} requests in ${DDoS.ipWindowMs / 1000}s window (max ${DDoS.ipMaxRequests})`,
+          ip,
+        });
+        return res.status(429).json({
+          success: false,
+          error: 'Too Many Requests',
+          message: 'Request rate exceeded. Temporary block in effect.',
+          retryAfterSec: DDoS.blockDurationSec,
+        });
+      }
+
+      req.ddosInfo = {
+        ip,
+        requestsInWindow: count,
+        limit: DDoS.ipMaxRequests,
+      };
+    } catch {
+      // Redis error — fail open
+    }
+
+    next();
+  } catch {
+    // Global fail open — never block requests due to DDoS middleware errors
+    next();
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
