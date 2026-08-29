@@ -39,6 +39,19 @@ const corsOrigin = corsOriginEnv
 
 const isDev = process.env.NODE_ENV !== 'production';
 
+function isPrivateIP(hostname) {
+  const parts = hostname.split('.');
+  if (parts.length !== 4 || !parts.every(p => /^\d{1,3}$/.test(p))) return true;
+  const octets = parts.map(Number);
+  if (octets.some(o => o < 0 || o > 255)) return true;
+  const [a, b] = octets;
+  if (a === 0 || a === 127 || a === 169 && b === 254) return true;
+  if (a === 10) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  return false;
+}
+
 function isAllowedOrigin(origin) {
   if (!origin) return true;
   if (corsOrigin === true) return true;
@@ -46,6 +59,7 @@ function isAllowedOrigin(origin) {
   try {
     const url = new URL(origin);
     if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return true;
+    if (!isPrivateIP(url.hostname)) return true;
   } catch {}
   return false;
 }
