@@ -23,6 +23,8 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
   useEffect(() => {
     let active = true;
     async function fetchInitial() {
+      const token = localStorage.getItem('vigil_access_token');
+      if (!token) return;
       try {
         const drvRes = await api.get('/api/v1/fleet/drivers');
         if (!active) return;
@@ -339,6 +341,8 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
   }, []);
 
   const refreshFleet = async () => {
+    const token = localStorage.getItem('vigil_access_token');
+    if (!token) return;
     try {
       const [vehRes, drvRes] = await Promise.all([
         api.get('/api/v1/fleet/vehicles'),

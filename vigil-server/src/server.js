@@ -19,7 +19,7 @@ import { setMqttBroker as setTokenMqttBroker } from './api/routes/tokens.js';
 import { setMqttBroker as setTelemetryMqttBroker } from './api/routes/telemetry.js';
 import { redisClient } from './cache/redisClient.js';
 import { cacheAllActiveTokens } from './cache/cacheService.js';
-import { securityHeaders, sanitizeRequest, ddosProtection, auditLogger } from './security/securityMiddleware.js';
+import { securityHeaders, sanitizeRequest, ddosProtection, auditLogger, flushAllDdosBlocks } from './security/securityMiddleware.js';
 import { VigilWSServer } from './websocket/server.js';
 import { db } from './services/databaseService.js';
 import cronService from './cron/index.js';
@@ -243,6 +243,8 @@ db.connect().then(async () => {
 
   // Redis Startup Sequence
   redisClient.connect().then(async () => {
+    // Flush any stale DDoS blocks from previous sessions
+    await flushAllDdosBlocks().catch(() => {});
     await cacheAllActiveTokens();
 
     // Periodic presence check: mark vehicles idle after 30s of no telemetry

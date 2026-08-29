@@ -36,6 +36,8 @@ export default function TopHeader({ activeUnits, operatorCount, connected, curre
   }, [user]);
 
   const fetchTenants = async () => {
+    const token = localStorage.getItem('vigil_access_token');
+    if (!token || !user) return;
     setTenantsLoading(true);
     try {
       if (user?.role === 'SUPER_ADMIN') {
