@@ -376,9 +376,14 @@ export default function App() {
                 showConfirm(
                   'Delete Vehicle',
                   `Are you sure you want to permanently delete vehicle ${id}? This action cannot be undone.`,
-                  () => {
-                    deleteVehicle(id);
-                    showToast(`🗑️ Vehicle ${id} deleted`);
+                  async () => {
+                    try {
+                      await deleteVehicle(id);
+                      showToast(`🗑️ Vehicle ${id} deleted`);
+                    } catch (e) {
+                      const msg = e.response?.data?.error || e.message || 'Delete failed';
+                      showToast(`❌ ${msg}`);
+                    }
                   }
                 );
               }}
@@ -386,9 +391,14 @@ export default function App() {
                 showConfirm(
                   'Delete Driver',
                   `Are you sure you want to permanently delete this driver record? This action cannot be undone.`,
-                  () => {
-                    deleteDriver(id);
-                    showToast(`🗑️ Driver ${id} deleted`);
+                  async () => {
+                    try {
+                      await deleteDriver(id);
+                      showToast(`🗑️ Driver ${id} deleted`);
+                    } catch (e) {
+                      const msg = e.response?.data?.error || e.message || 'Delete failed';
+                      showToast(`❌ ${msg}`);
+                    }
                   }
                 );
               }}

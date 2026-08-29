@@ -161,7 +161,7 @@ class DatabaseService {
   }
 
   async getVehicleById(id) {
-    return this.prisma.vehicle.findUnique({ where: { id } });
+    return this.prisma.vehicle.findUnique({ where: { id, deletedAt: null } });
   }
 
   async getVehicleByCode(tenantId, code) {
@@ -430,7 +430,7 @@ class DatabaseService {
   }
 
   async getDriverById(id) {
-    return this.prisma.driver.findUnique({ where: { id } });
+    return this.prisma.driver.findUnique({ where: { id, deletedAt: null } });
   }
 
   async updateDriver(id, data) {

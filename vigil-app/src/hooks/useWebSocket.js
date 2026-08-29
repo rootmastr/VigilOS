@@ -414,13 +414,8 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
         setVehicles(prev => prev.filter(v => v.id !== id));
         return;
       }
-      if (status === 401 || status === 403) {
-        setVehicles(prev => prev.filter(v => v.id !== id));
-        return;
-      }
-      console.warn('Delete vehicle API error, removing locally:', e);
-      setVehicles(prev => prev.filter(v => v.id !== id));
-      return;
+      console.warn('Delete vehicle API error:', e);
+      throw e;
     }
     await refreshFleet();
   };
@@ -434,13 +429,8 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
         setDrivers(prev => prev.filter(d => d.id !== id));
         return;
       }
-      if (status === 401 || status === 403) {
-        setDrivers(prev => prev.filter(d => d.id !== id));
-        return;
-      }
-      console.warn('Delete driver API error, removing locally:', e);
-      setDrivers(prev => prev.filter(d => d.id !== id));
-      return;
+      console.warn('Delete driver API error:', e);
+      throw e;
     }
     await refreshFleet();
   };
