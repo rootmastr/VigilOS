@@ -9,6 +9,7 @@ import { authenticateToken, requireRole } from '../../middleware/auth.js';
 import partitionService from '../../services/partitionService.js';
 import dataRetentionService from '../../services/dataRetentionService.js';
 import cronService from '../../cron/index.js';
+import { unblockIP, flushAllDdosBlocks } from '../../security/securityMiddleware.js';
 
 const router = express.Router();
 
@@ -249,6 +250,38 @@ router.get('/health', async (req, res) => {
     });
   } catch (error) {
     console.error('Health check error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DDoS RECOVERY (Super Admin Only)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /system/ddos/unblock — Unblock a specific IP
+ */
+router.post('/ddos/unblock', authenticateToken, requireRole('SUPER_ADMIN'), async (req, res) => {
+  try {
+    const { ip } = req.body;
+    if (!ip) return res.status(400).json({ success: false, error: 'IP address required' });
+    await unblockIP(ip);
+    res.json({ success: true, message: `IP ${ip} unblocked` });
+  } catch (error) {
+    console.error('Unblock IP error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /system/ddos/flush — Flush all DDoS blocks
+ */
+router.post('/ddos/flush', authenticateToken, requireRole('SUPER_ADMIN'), async (req, res) => {
+  try {
+    const result = await flushAllDdosBlocks();
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('Flush DDoS error:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });

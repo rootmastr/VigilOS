@@ -30,9 +30,9 @@ const RATE_LIMITS = {
 
 const DDoS = {
   ipWindowMs: 60 * 1000,
-  ipMaxRequests: 200,
+  ipMaxRequests: 500,
   blockThreshold: 500,
-  blockDurationSec: 3600,
+  blockDurationSec: 300,
   suspiciousScoreThreshold: 10,
 };
 
@@ -438,7 +438,7 @@ export function generateRefreshToken(userId, tenantId) {
  * Verify and decode a JWT token. Returns decoded payload or throws.
  */
 export function verifyToken(token) {
-  return jwt.verify(token, JWT_SECRET, { issuer: 'vigilos' });
+  return jwt.verify(token, JWT_SECRET);
 }
 
 /**
@@ -922,6 +922,45 @@ async function isIPBlocked(ip) {
 }
 
 /**
+ * Unblock a specific IP address.
+ */
+export async function unblockIP(ip) {
+  if (!redisClient.isAvailable) return false;
+  await redisClient.del(`ddos:blocked:${ip}`);
+  await redisClient.del(`ddos:suspicious:${ip}`);
+  logSecurityAudit({
+    action: 'IP_UNBLOCKED',
+    resource: 'ddos_protection',
+    result: 'UNBLOCKED',
+    details: `IP ${ip} manually unblocked`,
+    ip,
+  });
+  return true;
+}
+
+/**
+ * Flush all DDoS blocks (admin recovery).
+ */
+export async function flushAllDdosBlocks() {
+  if (!redisClient.isAvailable) return { flushed: 0 };
+  const blockedKeys = await redisClient.scanKeys('ddos:blocked:*');
+  const suspiciousKeys = await redisClient.scanKeys('ddos:suspicious:*');
+  const requestKeys = await redisClient.scanKeys('ddos:requests:*');
+  let flushed = 0;
+  for (const key of [...blockedKeys, ...suspiciousKeys, ...requestKeys]) {
+    await redisClient.del(key);
+    flushed++;
+  }
+  logSecurityAudit({
+    action: 'DDOS_FLUSH_ALL',
+    resource: 'ddos_protection',
+    result: 'FLUSHED',
+    details: `Flushed ${flushed} DDoS keys`,
+  });
+  return { flushed };
+}
+
+/**
  * Detect suspicious request patterns.
  */
 function analyzeSuspiciousPatterns(req) {
@@ -951,6 +990,17 @@ export async function ddosProtection(req, res, next) {
 
   // Check if IP is blocked
   if (await isIPBlocked(ip)) {
+    // Allow authenticated requests to pass through even if IP is blocked
+    const authHeader = req.headers['authorization'];
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.replace(/^Bearer\s+/, '').trim();
+        jwt.verify(token, JWT_SECRET);
+        return next();
+      } catch {
+        // Invalid token — still blocked
+      }
+    }
     logSecurityAudit({
       action: 'DDOS_BLOCKED',
       resource: req.path,
