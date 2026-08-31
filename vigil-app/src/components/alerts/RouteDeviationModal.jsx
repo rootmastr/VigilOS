@@ -32,8 +32,8 @@ export default function RouteDeviationModal({ deviation, onClose, onResolve }) {
       keyboard: false,
     });
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      subdomains: 'abcd',
+    L.tileLayer(import.meta.env.VITE_MAP_TILE_URL || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: import.meta.env.VITE_MAP_ATTRIBUTION || '&copy; OpenStreetMap',
       maxZoom: 19,
     }).addTo(map);
 

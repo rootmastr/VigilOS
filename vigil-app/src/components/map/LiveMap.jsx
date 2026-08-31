@@ -7,6 +7,9 @@ import { Map as MapIcon, Layers, RefreshCw, AlertTriangle, Search, WifiOff } fro
 import { GEOFENCES, CORRIDORS } from '../../data/mockData';
 import { LOGISTIK_A_GEOFENCES, LOGISTIK_A_CORRIDORS } from '../../data/mockDataLogistik';
 
+const MAP_TILE_URL = import.meta.env.VITE_MAP_TILE_URL || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const MAP_ATTRIBUTION = import.meta.env.VITE_MAP_ATTRIBUTION || '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+
 // Leaflet default icon fix
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -145,9 +148,8 @@ export default function LiveMap({ vehicles, onVehicleClick, selectedVehicle, onC
       attributionControl: true,
     });
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://carto.com/" target="_blank">CARTO</a> | &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
-      subdomains: 'abcd',
+    L.tileLayer(MAP_TILE_URL, {
+      attribution: MAP_ATTRIBUTION,
       maxZoom: 19,
     }).addTo(map);
 
