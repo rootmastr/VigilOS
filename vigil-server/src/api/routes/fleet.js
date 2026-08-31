@@ -12,6 +12,16 @@ import { authenticateToken, requireRole } from '../../middleware/auth.js';
 
 const router = express.Router();
 
+// Decode %2F in :id params (vehicle/driver IDs may contain slashes)
+router.use((req, res, next) => {
+  if (req.params.id) {
+    try {
+      req.params.id = decodeURIComponent(req.params.id);
+    } catch {}
+  }
+  next();
+});
+
 // MQTT broker instance (injected via server.js)
 let mqttBroker = null;
 

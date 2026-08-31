@@ -411,7 +411,7 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
 
   const deleteVehicle = async (id) => {
     try {
-      await api.delete(`/api/v1/fleet/vehicles/${id}`);
+      await api.delete(`/api/v1/fleet/vehicles/${encodeURIComponent(id)}`);
     } catch (e) {
       const status = e.response?.status;
       if (status === 404) {
@@ -426,7 +426,7 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
 
   const deleteDriver = async (id) => {
     try {
-      await api.delete(`/api/v1/fleet/drivers/${id}`);
+      await api.delete(`/api/v1/fleet/drivers/${encodeURIComponent(id)}`);
     } catch (e) {
       const status = e.response?.status;
       if (status === 404) {

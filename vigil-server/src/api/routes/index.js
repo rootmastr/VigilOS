@@ -122,22 +122,26 @@ router.post('/drivers', (req, res, next) => {
 });
 
 router.delete('/vehicles/:id', (req, res, next) => {
-  req.url = `/fleet/vehicles/${req.params.id}`;
+  const decodedId = decodeURIComponent(req.params.id);
+  req.url = `/fleet/vehicles/${encodeURIComponent(decodedId)}`;
   router.handle(req, res, next);
 });
 
 router.delete('/drivers/:id', (req, res, next) => {
-  req.url = `/fleet/drivers/${req.params.id}`;
+  const decodedId = decodeURIComponent(req.params.id);
+  req.url = `/fleet/drivers/${encodeURIComponent(decodedId)}`;
   router.handle(req, res, next);
 });
 
 router.patch('/vehicles/:id', (req, res, next) => {
-  req.url = `/fleet/vehicles/${req.params.id}`;
+  const decodedId = decodeURIComponent(req.params.id);
+  req.url = `/fleet/vehicles/${encodeURIComponent(decodedId)}`;
   router.handle(req, res, next);
 });
 
 router.put('/vehicles/:id/location', (req, res, next) => {
-  req.url = `/fleet/vehicles/${req.params.id}/location`;
+  const decodedId = decodeURIComponent(req.params.id);
+  req.url = `/fleet/vehicles/${encodeURIComponent(decodedId)}/location`;
   router.handle(req, res, next);
 });
 
