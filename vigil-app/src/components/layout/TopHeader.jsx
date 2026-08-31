@@ -56,7 +56,7 @@ export default function TopHeader({ activeUnits, operatorCount, connected, curre
 
   const activeTenant = tenants.find(t => t.id === currentTenant) || tenants[0];
   const TenantIcon = activeTenant?.industry === 'Logistics' ? Truck : Bus;
-  const userInitials = user?.name?.split(' ').map(n => n[0]).join('').slice(0, 2) || 'AD';
+  const userInitials = (user?.name?.split(' ') || []).map(n => n[0]).join('').slice(0, 2) || 'AD';
   const canSeePortal = PORTAL_ROLES.includes(user?.role);
   const canSwitchTenant = user?.role === 'SUPER_ADMIN';
 

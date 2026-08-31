@@ -161,7 +161,7 @@ export default function TeamManagement({ user }) {
                   <tr key={u.id}>
                     <td>
                       <div className="portal-table-user">
-                        <div className="portal-table-avatar">{u.name?.split(' ').map(n => n[0]).join('').slice(0, 2)}</div>
+                        <div className="portal-table-avatar">{(u.name?.split(' ') || []).map(n => n[0]).join('').slice(0, 2)}</div>
                         <div>
                           <div className="portal-table-user-name">{u.name}</div>
                           <div className="portal-table-user-email">{u.email}</div>

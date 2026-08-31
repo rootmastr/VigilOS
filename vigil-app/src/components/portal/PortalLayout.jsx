@@ -108,7 +108,7 @@ export default function PortalLayout({ activePage, onNavigate, user, onLogout, o
 
           <div className="portal-sidebar-user">
             <div className="portal-user-avatar">
-              {user?.name?.split(' ').map(n => n[0]).join('').slice(0, 2) || 'U'}
+              {(user?.name?.split(' ') || []).map(n => n[0]).join('').slice(0, 2) || 'U'}
             </div>
             <div className="portal-user-info">
               <span className="portal-user-name">{user?.name || 'User'}</span>

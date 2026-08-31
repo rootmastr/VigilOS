@@ -42,6 +42,7 @@ export default function FleetAdmin({
   };
 
   const copyToken = async (token) => {
+    if (!token) return;
     try {
       await navigator.clipboard.writeText(token);
       setCopiedId(token.slice(-8));
@@ -468,7 +469,7 @@ export default function FleetAdmin({
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span className="mono" style={{ color: 'var(--text-secondary)' }}>
-                            {revealedToken === t.id ? t.token : maskToken(t.token)}
+                            {revealedToken === t.id ? t.tokenHash : maskToken(t.tokenHash)}
                           </span>
                           <button
                             onClick={() => setRevealedToken(revealedToken === t.id ? null : t.id)}
@@ -478,11 +479,11 @@ export default function FleetAdmin({
                             {revealedToken === t.id ? <EyeOff size={13} /> : <Eye size={13} />}
                           </button>
                           <button
-                            onClick={() => copyToken(t.token)}
+                            onClick={() => copyToken(t.tokenHash)}
                             title="Copy token"
                             style={iconBtnStyle}
                           >
-                            {copiedId === t.token.slice(-8) ? <CheckCircle size={13} style={{ color: 'var(--status-green)' }} /> : <Copy size={13} />}
+                            {copiedId === (t.tokenHash || '').slice(-8) ? <CheckCircle size={13} style={{ color: 'var(--status-green)' }} /> : <Copy size={13} />}
                           </button>
                         </div>
                       </td>
