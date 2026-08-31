@@ -38,12 +38,13 @@ api.interceptors.response.use(
           return api(originalRequest);
         }
       } catch (refreshError) {
-        localStorage.removeItem('vigil_access_token');
-        localStorage.removeItem('vigil_refresh_token');
-        localStorage.removeItem('vigil_user');
-        window.location.href = '/';
-        return Promise.reject(refreshError);
+        // Fall through to clear auth
       }
+      
+      localStorage.removeItem('vigil_access_token');
+      localStorage.removeItem('vigil_refresh_token');
+      localStorage.removeItem('vigil_user');
+      window.location.href = '/';
     }
     
     return Promise.reject(error);

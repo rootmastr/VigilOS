@@ -31,7 +31,14 @@ export default function App() {
   const [authUser, setAuthUser] = useState(() => {
     try {
       const saved = localStorage.getItem('vigil_user');
-      return saved ? JSON.parse(saved) : null;
+      const token = localStorage.getItem('vigil_access_token');
+      if (!saved || !token) {
+        localStorage.removeItem('vigil_user');
+        localStorage.removeItem('vigil_access_token');
+        localStorage.removeItem('vigil_refresh_token');
+        return null;
+      }
+      return JSON.parse(saved);
     } catch { return null; }
   });
   const [activePage, setActivePage] = useState('map');

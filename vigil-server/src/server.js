@@ -26,6 +26,7 @@ import cronService from './cron/index.js';
 
 const PORT = process.env.PORT || 4000;
 const app = express();
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 
 // ═══════════════════════════════════════════════════════════════════════════════
