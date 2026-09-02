@@ -89,7 +89,7 @@ router.get('/vehicles/:id', authenticateToken, async (req, res) => {
  * Create new vehicle
  */
 router.post('/vehicles', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req, res) => {
-  const { code, name, type, lat, lng, speedLimit } = req.body;
+  const { id: requestedId, code, name, type, lat, lng, speedLimit } = req.body;
 
   try {
     if (!code || !name) {
@@ -110,8 +110,13 @@ router.post('/vehicles', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_A
       });
     }
 
+    // Use the provided vehicle ID (e.g. BUS-102) as the device identifier.
+    // This is what the firmware sends as vehicleId and what tokens bind to.
+    // Falls back to code if no explicit ID was supplied.
+    const vehicleId = requestedId || code;
+
     const vehicle = await db.createVehicle({
-      id: code,
+      id: vehicleId,
       tenantId,
       code,
       name,
