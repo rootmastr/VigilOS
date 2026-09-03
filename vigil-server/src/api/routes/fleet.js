@@ -6,6 +6,7 @@
  */
 
 import express from 'express';
+import crypto from 'crypto';
 import { db } from '../../services/databaseService.js';
 import { postgresDB } from '../../database/postgresAdapter.js';
 import { requireRole } from '../../middleware/auth.js';
@@ -118,9 +119,17 @@ router.post('/vehicles', requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req,
     }
 
     // Use the provided vehicle ID (e.g. BUS-102) as the device identifier.
-    // This is what the firmware sends as vehicleId and what tokens bind to.
     // Falls back to code if no explicit ID was supplied.
-    const vehicleId = requestedId || code;
+    // If that ID is taken (e.g. by another tenant), generate a unique one.
+    let vehicleId = requestedId || code;
+
+    // Check if the chosen ID already exists globally (id is PK, not tenant-scoped)
+    const existingById = await db.prisma.vehicle.findUnique({ where: { id: vehicleId } });
+    if (existingById) {
+      // Append a short random suffix to avoid collision
+      const suffix = crypto.randomBytes(3).toString('hex');
+      vehicleId = `${vehicleId}-${suffix}`;
+    }
 
     const vehicle = await db.createVehicle({
       id: vehicleId,
@@ -155,6 +164,14 @@ router.post('/vehicles', requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req,
     console.error('Create vehicle error:', error.message, error.stack);
     if (error.code) {
       console.error('Prisma error code:', error.code);
+    }
+    // Handle Prisma unique constraint error (P2002)
+    if (error.code === 'P2002') {
+      const target = error.meta?.target?.join(', ') || 'id';
+      return res.status(409).json({
+        success: false,
+        error: `A vehicle with this ${target} already exists`,
+      });
     }
     res.status(500).json({ success: false, error: 'Internal server error' });
   }

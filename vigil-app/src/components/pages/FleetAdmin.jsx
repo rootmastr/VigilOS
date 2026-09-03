@@ -153,10 +153,8 @@ export default function FleetAdmin({
   const handleAddVehicleSubmit = async (e) => {
     e.preventDefault();
     if (!vCode || !vName) return;
-    const createdId = vId || `BUS-${100 + vehicles.length + 1}`;
     try {
       await onAddVehicle({
-        id: createdId,
         code: vCode,
         name: vName,
         type: vType,
