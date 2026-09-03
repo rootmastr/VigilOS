@@ -81,6 +81,7 @@ services:
       - /app/node_modules
     ports:
       - "4141:3000"
+      - "5555:5555"
     networks:
       - vigil_network
     depends_on:
