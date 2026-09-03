@@ -356,57 +356,21 @@ export function useWebSocket(onEmergency, onRouteDeviation, tenantId = 'transsem
   };
 
   const addVehicle = async (vehicleData) => {
-    try {
-      const { data } = await api.post('/api/v1/fleet/vehicles', vehicleData);
-      if (data.success) {
-        await refreshFleet();
-        return data.data;
-      }
-      throw new Error(data.error || 'Failed to add vehicle');
-    } catch (err) {
-      console.warn('API error, adding locally:', err);
-      const fallback = {
-        id: vehicleData.code || `VEH-${Date.now().toString().slice(-3)}`,
-        code: vehicleData.code || 'NEW-001',
-        name: vehicleData.name || 'New Vehicle',
-        type: vehicleData.type || 'Vehicle',
-        driver: vehicleData.driver || 'Unassigned',
-        speedLimit: Number(vehicleData.speedLimit) || 50,
-        speed: 0,
-        passengers: 0,
-        status: 'offline',
-        lat: 0,
-        lng: 0
-      };
-      setVehicles(prev => [...prev, fallback]);
-      return fallback;
+    const { data } = await api.post('/api/v1/fleet/vehicles', vehicleData);
+    if (data.success) {
+      await refreshFleet();
+      return data.data;
     }
+    throw new Error(data.error || 'Failed to add vehicle');
   };
 
   const addDriver = async (driverData) => {
-    try {
-      const { data } = await api.post('/api/v1/fleet/drivers', driverData);
-      if (data.success) {
-        await refreshFleet();
-        return data.data;
-      }
-      throw new Error(data.error || 'Failed to add driver');
-    } catch (err) {
-      console.warn('API error, adding locally:', err);
-      const fallback = {
-        id: driverData.id || `DRV-${Date.now().toString().slice(-3)}`,
-        name: driverData.name,
-        vehicleId: driverData.vehicleId || 'UNASSIGNED',
-        licenseNo: driverData.licenseNo || 'SIM-B2-00000',
-        phone: driverData.phone || '+62 812-0000-0000',
-        safetyScore: Number(driverData.safetyScore) || 90,
-        status: 'normal',
-        trips: 0,
-        hoursOnDuty: '0.0'
-      };
-      setDrivers(prev => [...prev, fallback]);
-      return fallback;
+    const { data } = await api.post('/api/v1/fleet/drivers', driverData);
+    if (data.success) {
+      await refreshFleet();
+      return data.data;
     }
+    throw new Error(data.error || 'Failed to add driver');
   };
 
   const deleteVehicle = async (id) => {

@@ -127,9 +127,6 @@ router.post('/vehicles', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_A
       status: 'OFFLINE',
     });
 
-    // Sync to in-memory store for MQTT simulator
-    await postgresDB.createVehicle(vehicle);
-
     // Broadcast via MQTT
     if (mqttBroker?.onSocketBroadcast) {
       mqttBroker.onSocketBroadcast('vehicle_added', vehicle);
@@ -167,7 +164,6 @@ router.patch('/vehicles/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TEN
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
     const updated = await db.updateVehicle(req.params.id, req.body);
-    await postgresDB.updateVehicle(req.params.id, req.body);
     res.json({ success: true, data: updated });
   } catch (error) {
     console.error('Patch vehicle error:', error);
@@ -200,9 +196,6 @@ router.put('/vehicles/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TENAN
       speedLimit,
       status,
     });
-
-    // Sync to in-memory store
-    await postgresDB.updateVehicle(updated.id, updated);
 
     // Broadcast via MQTT
     if (mqttBroker?.onSocketBroadcast) {
@@ -239,9 +232,6 @@ router.delete('/vehicles/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TE
     if (mqttBroker?.stopDeviceTelemetry) {
       mqttBroker.stopDeviceTelemetry(vehicle.id);
     }
-
-    // Remove from in-memory store
-    await postgresDB.deleteVehicle(req.params.id);
 
     // Broadcast via MQTT
     if (mqttBroker?.onSocketBroadcast) {
@@ -372,9 +362,6 @@ router.post('/drivers', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_AD
       safetyScore: Number(safetyScore) || 90,
     });
 
-    // Sync to in-memory store
-    await postgresDB.createDriver(driver);
-
     // Broadcast via MQTT
     if (mqttBroker?.onSocketBroadcast) {
       mqttBroker.onSocketBroadcast('driver_added', driver);
@@ -423,9 +410,6 @@ router.put('/drivers/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT
       status,
     });
 
-    // Sync to in-memory store
-    await postgresDB.updateDriver(updated.id, updated);
-
     // Broadcast via MQTT
     if (mqttBroker?.onSocketBroadcast) {
       mqttBroker.onSocketBroadcast('driver_updated', updated);
@@ -456,9 +440,6 @@ router.delete('/drivers/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TEN
 
     // Soft delete in PostgreSQL
     await db.deleteDriver(req.params.id);
-
-    // Remove from in-memory store
-    await postgresDB.deleteDriver(req.params.id);
 
     // Broadcast via MQTT
     if (mqttBroker?.onSocketBroadcast) {

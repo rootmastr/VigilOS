@@ -154,17 +154,21 @@ export default function FleetAdmin({
     e.preventDefault();
     if (!vCode || !vName) return;
     const createdId = vId || `BUS-${100 + vehicles.length + 1}`;
-    await onAddVehicle({
-      id: createdId,
-      code: vCode,
-      name: vName,
-      type: vType,
-      driver: vDriver || 'Unassigned Driver',
-      speedLimit: Number(vSpeedLimit) || 50
-    });
-    setShowVehicleModal(false);
-    // Reset form
-    setVId(''); setVCode(''); setVName(''); setVDriver(''); setVSpeedLimit('50');
+    try {
+      await onAddVehicle({
+        id: createdId,
+        code: vCode,
+        name: vName,
+        type: vType,
+        driver: vDriver || 'Unassigned Driver',
+        speedLimit: Number(vSpeedLimit) || 50
+      });
+      setShowVehicleModal(false);
+      setVId(''); setVCode(''); setVName(''); setVDriver(''); setVSpeedLimit('50');
+    } catch (err) {
+      console.error('Failed to add vehicle:', err);
+      alert('Gagal menambahkan vehicle: ' + (err.message || 'Server error'));
+    }
   };
 
   const handleAddDriverSubmit = async (e) => {
