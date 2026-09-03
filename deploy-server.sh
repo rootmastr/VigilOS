@@ -150,8 +150,8 @@ deploy_containers() {
 run_migrations() {
     cd "$APP_DIR"
     info "Running Prisma migrations..."
-    docker-compose -f "$COMPOSE_FILE" exec -T server npx prisma generate 2>/dev/null || true
-    docker-compose -f "$COMPOSE_FILE" exec -T server npx prisma migrate deploy 2>/dev/null || true
+    docker-compose -f "$COMPOSE_FILE" exec -T server npx prisma@6.9.0 generate 2>/dev/null || true
+    docker-compose -f "$COMPOSE_FILE" exec -T server npx prisma@6.9.0 migrate deploy 2>/dev/null || true
     log "Migrations complete"
 }
 

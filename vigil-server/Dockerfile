@@ -39,4 +39,4 @@ USER vigil
 EXPOSE 3000
 
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "src/server.js"]
+CMD ["sh", "-c", "npx prisma@6.9.0 migrate deploy && node src/server.js"]
