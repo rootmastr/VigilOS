@@ -8,7 +8,7 @@
 import express from 'express';
 import { db } from '../../services/databaseService.js';
 import { postgresDB } from '../../database/postgresAdapter.js';
-import { authenticateToken, requireRole } from '../../middleware/auth.js';
+import { requireRole } from '../../middleware/auth.js';
 
 const router = express.Router();
 
@@ -33,7 +33,7 @@ export function setMqttBroker(broker) {
  * GET /vehicles
  * List all vehicles for tenant
  */
-router.get('/vehicles', authenticateToken, async (req, res) => {
+router.get('/vehicles', async (req, res) => {
   try {
     const tenantId = req.user.role === 'SUPER_ADMIN' ? (req.query.tenantId || undefined) : req.user.tenantId;
 
@@ -65,7 +65,7 @@ router.get('/vehicles', authenticateToken, async (req, res) => {
  * GET /vehicles/:id
  * Get vehicle by ID
  */
-router.get('/vehicles/:id', authenticateToken, async (req, res) => {
+router.get('/vehicles/:id', async (req, res) => {
   try {
     const vehicle = await db.getVehicleById(req.params.id);
     if (!vehicle) {
@@ -88,7 +88,7 @@ router.get('/vehicles/:id', authenticateToken, async (req, res) => {
  * POST /vehicles
  * Create new vehicle
  */
-router.post('/vehicles', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req, res) => {
+router.post('/vehicles', requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req, res) => {
   const { id: requestedId, code, name, type, lat, lng, speedLimit } = req.body;
 
   try {
@@ -100,6 +100,13 @@ router.post('/vehicles', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_A
     }
 
     const tenantId = req.user.tenantId;
+    if (!tenantId) {
+      console.error('Create vehicle error: tenantId is missing from JWT token');
+      return res.status(400).json({
+        success: false,
+        error: 'Tenant context is required. Your account may not be assigned to a tenant.',
+      });
+    }
 
     // Check if vehicle code already exists for this tenant
     const existing = await db.getVehicleByCode(tenantId, code);
@@ -145,7 +152,10 @@ router.post('/vehicles', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_A
 
     res.status(201).json({ success: true, data: vehicle });
   } catch (error) {
-    console.error('Create vehicle error:', error);
+    console.error('Create vehicle error:', error.message, error.stack);
+    if (error.code) {
+      console.error('Prisma error code:', error.code);
+    }
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
@@ -154,7 +164,7 @@ router.post('/vehicles', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_A
  * PATCH /vehicles/:id
  * Partial update vehicle (e.g., status)
  */
-router.patch('/vehicles/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req, res) => {
+router.patch('/vehicles/:id', requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req, res) => {
   try {
     const vehicle = await db.getVehicleById(req.params.id);
     if (!vehicle) {
@@ -175,7 +185,7 @@ router.patch('/vehicles/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TEN
  * PUT /vehicles/:id
  * Update vehicle
  */
-router.put('/vehicles/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req, res) => {
+router.put('/vehicles/:id', requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req, res) => {
   try {
     const vehicle = await db.getVehicleById(req.params.id);
     if (!vehicle) {
@@ -213,7 +223,7 @@ router.put('/vehicles/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TENAN
  * DELETE /vehicles/:id
  * Delete vehicle (soft delete)
  */
-router.delete('/vehicles/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req, res) => {
+router.delete('/vehicles/:id', requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req, res) => {
   try {
     const vehicle = await db.getVehicleById(req.params.id);
     if (!vehicle) {
@@ -279,7 +289,7 @@ router.delete('/vehicles/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TE
  * GET /drivers
  * List all drivers for tenant
  */
-router.get('/drivers', authenticateToken, async (req, res) => {
+router.get('/drivers', async (req, res) => {
   try {
     const tenantId = req.user.role === 'SUPER_ADMIN' ? (req.query.tenantId || undefined) : req.user.tenantId;
     const { status, skip = 0, take = 50 } = req.query;
@@ -309,7 +319,7 @@ router.get('/drivers', authenticateToken, async (req, res) => {
  * GET /drivers/:id
  * Get driver by ID
  */
-router.get('/drivers/:id', authenticateToken, async (req, res) => {
+router.get('/drivers/:id', async (req, res) => {
   try {
     const driver = await db.getDriverById(req.params.id);
     if (!driver) {
@@ -332,7 +342,7 @@ router.get('/drivers/:id', authenticateToken, async (req, res) => {
  * POST /drivers
  * Create new driver
  */
-router.post('/drivers', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req, res) => {
+router.post('/drivers', requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req, res) => {
   const { id: requestId, name, licenseNo, phone, vehicleId, safetyScore } = req.body;
 
   try {
@@ -344,6 +354,13 @@ router.post('/drivers', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_AD
     }
 
     const tenantId = req.user.tenantId;
+    if (!tenantId) {
+      console.error('Create driver error: tenantId is missing from JWT token');
+      return res.status(400).json({
+        success: false,
+        error: 'Tenant context is required. Your account may not be assigned to a tenant.',
+      });
+    }
 
     // Generate D#### ID if not provided
     let driverId = requestId;
@@ -380,7 +397,10 @@ router.post('/drivers', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_AD
 
     res.status(201).json({ success: true, data: driver });
   } catch (error) {
-    console.error('Create driver error:', error);
+    console.error('Create driver error:', error.message, error.stack);
+    if (error.code) {
+      console.error('Prisma error code:', error.code);
+    }
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
@@ -389,7 +409,7 @@ router.post('/drivers', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_AD
  * PUT /drivers/:id
  * Update driver
  */
-router.put('/drivers/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req, res) => {
+router.put('/drivers/:id', requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req, res) => {
   try {
     const driver = await db.getDriverById(req.params.id);
     if (!driver) {
@@ -426,7 +446,7 @@ router.put('/drivers/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT
  * DELETE /drivers/:id
  * Delete driver (soft delete)
  */
-router.delete('/drivers/:id', authenticateToken, requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req, res) => {
+router.delete('/drivers/:id', requireRole('SUPER_ADMIN', 'TENANT_ADMIN'), async (req, res) => {
   try {
     const driver = await db.getDriverById(req.params.id);
     if (!driver) {
