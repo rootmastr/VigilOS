@@ -155,6 +155,7 @@ export default function FleetAdmin({
     if (!vCode || !vName) return;
     try {
       await onAddVehicle({
+        id: vId || undefined,
         code: vCode,
         name: vName,
         type: vType,

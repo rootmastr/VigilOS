@@ -42,8 +42,8 @@
 // ══════════════════════════════════════════════════════════════════════════════
 
 // WiFi credentials
-const char *WIFI_SSID = "sun";
-const char *WIFI_PASSWORD = "rootmastr";
+const char *WIFI_SSID = "Disapa kopi";
+const char *WIFI_PASSWORD = "disapa24jam";
 
 // VigilOS Backend
 const char *SERVER_HOST = "111.68.31.232"; // VigilOS Backend Server
@@ -56,7 +56,7 @@ const char *DEVICE_ID =
     "BUS-101"; // Vehicle code (e.g., TS-101 for TransSemarang)
 
 // Device token — generate via Command Center Fleet Admin, paste here
-const char *DEVICE_TOKEN = "vgl_live_a48a8fb4781091eed94096ff41c051cb";
+const char *DEVICE_TOKEN = "vgl_live_e0bb66242ffe7d43da6d6adb8b271de9";
 
 // Timing intervals (milliseconds)
 #define TELEMETRY_INTERVAL_MS 10000UL  // Send telemetry every 10s
@@ -155,7 +155,7 @@ char deviceToken[256] = {0};
 bool hasToken = false;
 
 // Offline retry queue (simple ring buffer)
-#define RETRY_QUEUE_SIZE 120
+#define RETRY_QUEUE_SIZE 20
 struct TelemetryRecord {
   float lat;
   float lng;
