@@ -21,6 +21,7 @@ import incidentRoutes from './incidents.js';
 import portalRoutes from './portal.js';
 import systemRoutes from './system.js';
 import tokenRoutes from './tokens.js';
+import adminRoutes from './admin.js';
 import telemetryRoutes, { setMqttBroker as setTelemetryMqttBroker } from './telemetry.js';
 
 const router = express.Router();
@@ -92,6 +93,7 @@ router.use('/incidents', ...protectedMiddleware, incidentRoutes);
 router.use('/portal', ...protectedMiddleware, portalRoutes);
 router.use('/tokens', ...protectedMiddleware, tokenRoutes);
 router.use('/system', systemRoutes);
+router.use('/admin', adminRoutes);
 
 // Telemetry & Emergency routes (IoT device auth via X-Device-Token)
 router.use(telemetryRoutes);

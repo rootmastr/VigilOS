@@ -11,11 +11,12 @@ import {
   Building2,
   Settings,
   Puzzle,
+  Database,
 } from 'lucide-react';
 
 // Role-based portal page access
 const ROLE_PORTAL_ACCESS = {
-  SUPER_ADMIN:       ['portal-dashboard', 'portal-team', 'portal-billing', 'portal-sla', 'portal-apikeys', 'portal-settings', 'portal-features', 'portal-tenants'],
+  SUPER_ADMIN:       ['portal-dashboard', 'portal-team', 'portal-billing', 'portal-sla', 'portal-apikeys', 'portal-settings', 'portal-features', 'portal-tenants', 'admin-db'],
   TENANT_ADMIN:      ['portal-dashboard', 'portal-team', 'portal-billing', 'portal-sla', 'portal-apikeys', 'portal-settings'],
   TENANT_FINANCE:    ['portal-billing'],
   TENANT_DISPATCHER: [],
@@ -37,6 +38,7 @@ const PORTAL_NAV = [
   { id: 'portal-settings', icon: Settings, label: 'Settings', roles: ['SUPER_ADMIN', 'TENANT_ADMIN'] },
   { id: 'portal-features', icon: Puzzle, label: 'Features', roles: ['SUPER_ADMIN'] },
   { id: 'portal-tenants', icon: Building2, label: 'Tenants', roles: ['SUPER_ADMIN'] },
+  { id: 'admin-db', icon: Database, label: 'Database', roles: ['SUPER_ADMIN'] },
 ];
 
 export function canAccessPortal(role) {

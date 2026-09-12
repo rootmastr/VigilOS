@@ -21,11 +21,12 @@ import FeatureManagement from './components/portal/FeatureManagement';
 import TenantManagement from './components/portal/TenantManagement';
 import TenantDetail from './components/portal/TenantDetail';
 import ProvisioningWizard from './components/portal/ProvisioningWizard';
+import AdminDBPanel from './components/portal/AdminDBPanel';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useAudioAlarm } from './hooks/useAudioAlarm';
 import { AlertTriangle, Bell } from 'lucide-react';
 
-const PORTAL_PAGES = ['portal-dashboard', 'portal-team', 'portal-billing', 'portal-sla', 'portal-apikeys', 'portal-settings', 'portal-features', 'portal-tenants', 'portal-tenant-detail'];
+const PORTAL_PAGES = ['portal-dashboard', 'portal-team', 'portal-billing', 'portal-sla', 'portal-apikeys', 'portal-settings', 'portal-features', 'portal-tenants', 'portal-tenant-detail', 'admin-db'];
 
 export default function App() {
   const [authUser, setAuthUser] = useState(() => {
@@ -274,6 +275,7 @@ export default function App() {
             showToast={showToast}
           />
         )}
+        {activePage === 'admin-db' && canAccessPage(userRole, 'admin-db') && <AdminDBPanel />}
       </PortalLayout>
     );
   }
