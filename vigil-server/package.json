@@ -35,7 +35,7 @@
     "jsonwebtoken": "^9.0.3",
     "node-cron": "^4.6.0",
     "socket.io": "^4.7.5",
-    "ws": "^8.17.0"
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^5.16.5",
