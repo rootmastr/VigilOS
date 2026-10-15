@@ -146,13 +146,13 @@ jobs:
         run: npm run build
 
       - name: Upload server artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v7
         with:
           name: server-dist
           path: ./vigil-server/dist
 
       - name: Upload app artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v7
         with:
           name: app-dist
           path: ./vigil-app/dist
