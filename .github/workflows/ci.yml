@@ -189,7 +189,7 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build and push server
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./vigil-server
           push: true
@@ -200,7 +200,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Build and push app
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./vigil-app
           push: true
